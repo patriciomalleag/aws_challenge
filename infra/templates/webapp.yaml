@@ -223,6 +223,9 @@ Resources:
         UserData:
           Fn::Base64: !Sub |
             #!/bin/bash
+            # Log del inicio del UserData
+            echo "=== USERDATA START: $(date) ===" >> /var/log/userdata.log
+            
             yum update -y
             yum install -y git nodejs npm nginx
             
@@ -408,6 +411,11 @@ Resources:
                         "file_path": "/home/ec2-user/.pm2/logs/backend-api-error.log",
                         "log_group_name": "/aws/ec2/pm2/backend-error",
                         "log_stream_name": "{instance_id}"
+                      },
+                      {
+                        "file_path": "/var/log/userdata.log",
+                        "log_group_name": "/aws/ec2/userdata",
+                        "log_stream_name": "{instance_id}"
                       }
                     ]
                   }
@@ -417,6 +425,9 @@ Resources:
             EOF
             systemctl enable amazon-cloudwatch-agent
             systemctl start amazon-cloudwatch-agent
+            
+            # Log del final del UserData
+            echo "=== USERDATA COMPLETED: $(date) ===" >> /var/log/userdata.log
         BlockDeviceMappings:
           - DeviceName: /dev/xvda
             Ebs:
