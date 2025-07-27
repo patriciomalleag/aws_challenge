@@ -234,7 +234,7 @@ Resources:
             cd /opt/webapp
             
             # Clonar el repositorio desde GitHub
-            if ! git clone https://github.com/patriciomallea/aws_challenge.git .; then
+            if ! git clone https://github.com/patriciomalleag/aws_challenge.git .; then
               echo "Error: No se pudo clonar el repositorio"
               # Crear estructura básica si falla
               mkdir -p frontend backend-api
