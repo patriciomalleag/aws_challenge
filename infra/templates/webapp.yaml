@@ -66,6 +66,8 @@ Parameters:
     Description: Nombre de la función Lambda Query
 
 Resources:
+
+
   # Security Group para el Application Load Balancer
   LBSecurityGroup:
     Type: AWS::EC2::SecurityGroup
@@ -218,8 +220,7 @@ Resources:
       LaunchTemplateData:
         ImageId: ami-0c02fb55956c7d316  # Amazon Linux 2 AMI (us-east-1)
         InstanceType: !Ref InstanceType
-        IamInstanceProfile:
-          Name: !Ref LabRoleArn
+
         SecurityGroupIds:
           - !Ref EC2SecurityGroup
         UserData:
@@ -371,62 +372,8 @@ Resources:
             EOF
             chmod +x /opt/webapp/health.sh
             
-            # Configurar CloudWatch Agent
-            yum install -y amazon-cloudwatch-agent
-            cat > /opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json << 'EOF'
-            {
-              "logs": {
-                "logs_collected": {
-                  "files": {
-                    "collect_list": [
-                      {
-                        "file_path": "/var/log/messages",
-                        "log_group_name": "/aws/ec2/webapp",
-                        "log_stream_name": "{instance_id}"
-                      },
-                      {
-                        "file_path": "/var/log/nginx/access.log",
-                        "log_group_name": "/aws/ec2/nginx/access",
-                        "log_stream_name": "{instance_id}"
-                      },
-                      {
-                        "file_path": "/var/log/nginx/error.log",
-                        "log_group_name": "/aws/ec2/nginx/error",
-                        "log_stream_name": "{instance_id}"
-                      },
-                      {
-                        "file_path": "/var/log/cloud-init.log",
-                        "log_group_name": "/aws/ec2/cloud-init",
-                        "log_stream_name": "{instance_id}"
-                      },
-                      {
-                        "file_path": "/var/log/cloud-init-output.log",
-                        "log_group_name": "/aws/ec2/cloud-init-output",
-                        "log_stream_name": "{instance_id}"
-                      },
-                      {
-                        "file_path": "/home/ec2-user/.pm2/logs/backend-api-out.log",
-                        "log_group_name": "/aws/ec2/pm2/backend-out",
-                        "log_stream_name": "{instance_id}"
-                      },
-                      {
-                        "file_path": "/home/ec2-user/.pm2/logs/backend-api-error.log",
-                        "log_group_name": "/aws/ec2/pm2/backend-error",
-                        "log_stream_name": "{instance_id}"
-                      },
-                      {
-                        "file_path": "/var/log/userdata.log",
-                        "log_group_name": "/aws/ec2/userdata",
-                        "log_stream_name": "{instance_id}"
-                      }
-                    ]
-                  }
-                }
-              }
-            }
-            EOF
-            systemctl enable amazon-cloudwatch-agent
-            systemctl start amazon-cloudwatch-agent
+            # Log del final del UserData
+            echo "=== USERDATA COMPLETED: $(date) ===" >> /var/log/userdata.log
             
             # Log del final del UserData
             echo "=== USERDATA COMPLETED: $(date) ===" >> /var/log/userdata.log
