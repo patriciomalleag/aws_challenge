@@ -264,11 +264,11 @@ Resources:
             # Configurar variables de entorno para el backend
             cat > /opt/webapp/backend-api/.env << 'EOF'
             PORT=8080
-            AWS_REGION=${AWS::Region}
-            S3_BUCKET_RAW=${S3BucketRaw}
-            S3_BUCKET_CURATED=${S3BucketCurated}
-            DDB_TABLE_NAME=${DDBTableName}
-            LAMBDA_QUERY_FUNCTION_NAME=${LambdaQueryFunctionName}
+            AWS_REGION=$${AWS::Region}
+            S3_BUCKET_RAW=$${S3BucketRaw}
+            S3_BUCKET_CURATED=$${S3BucketCurated}
+            DDB_TABLE_NAME=$${DDBTableName}
+            LAMBDA_QUERY_FUNCTION_NAME=$${LambdaQueryFunctionName}
             EOF
             
             # Configurar Nginx para servir el frontend
@@ -332,7 +332,7 @@ Resources:
               });
               
               app.listen(port, () => {
-                console.log(`Server running on port ${port}`);
+                console.log('Server running on port ' + port);
               });
               EOF
               
