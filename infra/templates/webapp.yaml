@@ -1,0 +1,538 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Aplicación Web en EC2 - Stack para Frontend y Backend'
+
+Parameters:
+  LabRoleArn:
+    Type: String
+    Description: ARN del rol LabRole preasignado
+    
+  VPCId:
+    Type: String
+    Description: ID de la VPC donde desplegar la aplicación
+    
+  PublicSubnetId:
+    Type: String
+    Description: ID de la subred pública para el Load Balancer
+    
+  PublicSubnet2Id:
+    Type: String
+    Description: ID de la segunda subred pública para el Load Balancer
+    
+  PrivateSubnetId:
+    Type: String
+    Description: ID de la subred privada para las instancias EC2
+    
+  InstanceType:
+    Type: String
+    Description: Tipo de instancia EC2
+    Default: t3.micro
+    AllowedValues: [t3.micro, t3.small, t3.medium, t2.micro, t2.small]
+    
+  MinSize:
+    Type: Number
+    Description: Número mínimo de instancias en el Auto Scaling Group
+    Default: 1
+    MinValue: 1
+    MaxValue: 10
+    
+  MaxSize:
+    Type: Number
+    Description: Número máximo de instancias en el Auto Scaling Group
+    Default: 3
+    MinValue: 1
+    MaxValue: 10
+    
+  DesiredCapacity:
+    Type: Number
+    Description: Número deseado de instancias en el Auto Scaling Group
+    Default: 2
+    MinValue: 1
+    MaxValue: 10
+    
+  S3BucketRaw:
+    Type: String
+    Description: Nombre del bucket S3 para archivos raw
+    
+  S3BucketCurated:
+    Type: String
+    Description: Nombre del bucket S3 para archivos curated
+    
+  DDBTableName:
+    Type: String
+    Description: Nombre de la tabla DynamoDB para el catálogo
+    
+  LambdaQueryFunctionName:
+    Type: String
+    Description: Nombre de la función Lambda Query
+
+Resources:
+  # Security Group para el Application Load Balancer
+  LBSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Security group for Application Load Balancer
+      VpcId: !Ref VPCId
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+          Description: HTTP access
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: 0.0.0.0/0
+          Description: HTTPS access
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          CidrIp: 0.0.0.0/0
+          Description: Allow all outbound traffic
+      Tags:
+        - Key: Name
+          Value: data-pipeline-lb-sg
+        - Key: Project
+          Value: data-pipeline
+
+  # Security Group para las instancias EC2
+  EC2SecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Security group for EC2 instances running the web application
+      VpcId: !Ref VPCId
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          SourceSecurityGroupId: !Ref LBSecurityGroup
+          Description: HTTP access from ALB
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          SourceSecurityGroupId: !Ref LBSecurityGroup
+          Description: HTTPS access from ALB
+
+        - IpProtocol: tcp
+          FromPort: 8080
+          ToPort: 8080
+          SourceSecurityGroupId: !Ref LBSecurityGroup
+          Description: Backend API port
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          CidrIp: 0.0.0.0/0
+          Description: Allow all outbound traffic
+      Tags:
+        - Key: Name
+          Value: data-pipeline-ec2-sg
+        - Key: Project
+          Value: data-pipeline
+
+  # Application Load Balancer
+  ApplicationLoadBalancer:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Name: data-pipeline-alb
+      Scheme: internet-facing
+      Type: application
+      IpAddressType: ipv4
+      Subnets:
+        - !Ref PublicSubnetId
+        - !Ref PublicSubnet2Id
+      SecurityGroups:
+        - !Ref LBSecurityGroup
+      Tags:
+        - Key: Name
+          Value: data-pipeline-alb
+        - Key: Project
+          Value: data-pipeline
+
+  # Target Group para el frontend (puerto 80)
+  FETargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: data-pipeline-fe-tg
+      Port: 80
+      Protocol: HTTP
+      VpcId: !Ref VPCId
+      TargetType: instance
+      HealthCheckPath: /
+      HealthCheckIntervalSeconds: 30
+      HealthCheckTimeoutSeconds: 5
+      HealthyThresholdCount: 2
+      UnhealthyThresholdCount: 2
+      Tags:
+        - Key: Name
+          Value: data-pipeline-fe-tg
+        - Key: Project
+          Value: data-pipeline
+
+  # Target Group para el backend (puerto 8080)
+  BETargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: data-pipeline-be-tg
+      Port: 8080
+      Protocol: HTTP
+      VpcId: !Ref VPCId
+      TargetType: instance
+      HealthCheckPath: /health
+      HealthCheckIntervalSeconds: 30
+      HealthCheckTimeoutSeconds: 5
+      HealthyThresholdCount: 2
+      UnhealthyThresholdCount: 2
+      Tags:
+        - Key: Name
+          Value: data-pipeline-be-tg
+        - Key: Project
+          Value: data-pipeline
+
+  # Listener para HTTP (puerto 80)
+  HTTPListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref FETargetGroup
+      LoadBalancerArn: !Ref ApplicationLoadBalancer
+      Port: 80
+      Protocol: HTTP
+
+  # Listener Rule para API (puerto 80)
+  APIListenerRule:
+    Type: AWS::ElasticLoadBalancingV2::ListenerRule
+    Properties:
+      Actions:
+        - Type: forward
+          TargetGroupArn: !Ref BETargetGroup
+      Conditions:
+        - Field: path-pattern
+          Values:
+            - /api/*
+      ListenerArn: !Ref HTTPListener
+      Priority: 100
+
+  # Launch Template para las instancias EC2
+  LaunchTemplate:
+    Type: AWS::EC2::LaunchTemplate
+    Properties:
+      LaunchTemplateName: data-pipeline-lt
+      LaunchTemplateData:
+        ImageId: ami-0c02fb55956c7d316  # Amazon Linux 2 AMI (us-east-1)
+        InstanceType: !Ref InstanceType
+        SecurityGroupIds:
+          - !Ref EC2SecurityGroup
+        UserData:
+          Fn::Base64: !Sub |
+            #!/bin/bash
+            yum update -y
+            yum install -y git nodejs npm nginx
+            
+            # Instalar PM2 para gestión de procesos
+            npm install -g pm2
+            
+            # Crear directorio de la aplicación
+            mkdir -p /opt/webapp
+            cd /opt/webapp
+            
+            # Clonar el repositorio desde GitHub
+            if ! git clone https://github.com/patriciomallea/aws_challenge.git .; then
+              echo "Error: No se pudo clonar el repositorio"
+              # Crear estructura básica si falla
+              mkdir -p frontend backend-api
+              echo "Repository clone failed, creating basic structure"
+            fi
+            
+            # Instalar dependencias del frontend
+            cd frontend
+            if [ -f package.json ]; then
+              npm install || echo "Frontend npm install failed"
+              npm run build || echo "Frontend build failed"
+            else
+              echo "No package.json found in frontend"
+            fi
+            
+            # Instalar dependencias del backend
+            cd ../backend-api
+            if [ -f package.json ]; then
+              npm install || echo "Backend npm install failed"
+            else
+              echo "No package.json found in backend"
+            fi
+            
+            # Configurar variables de entorno para el backend
+            cat > /opt/webapp/backend-api/.env << 'EOF'
+            PORT=8080
+            AWS_REGION=${AWS::Region}
+            S3_BUCKET_RAW=${S3BucketRaw}
+            S3_BUCKET_CURATED=${S3BucketCurated}
+            DDB_TABLE_NAME=${DDBTableName}
+            LAMBDA_QUERY_FUNCTION_NAME=${LambdaQueryFunctionName}
+            EOF
+            
+            # Configurar Nginx para servir el frontend
+            cat > /etc/nginx/conf.d/webapp.conf << 'EOF'
+            server {
+                listen 80;
+                server_name _;
+                
+                # Frontend (React)
+                location / {
+                    root /opt/webapp/frontend/build;
+                    try_files $uri $uri/ /index.html;
+                    add_header Cache-Control "no-cache, no-store, must-revalidate";
+                }
+                
+                # Backend API
+                location /api/ {
+                    proxy_pass http://localhost:8080;
+                    proxy_http_version 1.1;
+                    proxy_set_header Upgrade $http_upgrade;
+                    proxy_set_header Connection 'upgrade';
+                    proxy_set_header Host $host;
+                    proxy_set_header X-Real-IP $remote_addr;
+                    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+                    proxy_set_header X-Forwarded-Proto $scheme;
+                    proxy_cache_bypass $http_upgrade;
+                }
+                
+                # Health check endpoint
+                location /health {
+                    proxy_pass http://localhost:8080/health;
+                    proxy_set_header Host $host;
+                }
+            }
+            EOF
+            
+            # Iniciar Nginx
+            systemctl enable nginx
+            systemctl start nginx
+            
+            # Configurar PM2 para el backend
+            cd /opt/webapp/backend-api
+            if [ -f server.js ]; then
+              pm2 start server.js --name "backend-api" || echo "PM2 start failed"
+              pm2 startup || echo "PM2 startup failed"
+              pm2 save || echo "PM2 save failed"
+            else
+              echo "No server.js found, creating basic health endpoint"
+              # Crear un servidor básico si no existe
+              cat > server.js << 'EOF'
+              const express = require('express');
+              const app = express();
+              const port = process.env.PORT || 8080;
+              
+              app.get('/health', (req, res) => {
+                res.status(200).json({ status: 'OK', timestamp: new Date().toISOString() });
+              });
+              
+              app.get('/api/test', (req, res) => {
+                res.status(200).json({ message: 'API is working' });
+              });
+              
+              app.listen(port, () => {
+                console.log(`Server running on port ${port}`);
+              });
+              EOF
+              
+              npm init -y
+              npm install express
+              pm2 start server.js --name "backend-api"
+              pm2 startup
+              pm2 save
+            fi
+            
+            # Crear script de health check
+            cat > /opt/webapp/health.sh << 'EOF'
+            #!/bin/bash
+            # Verificar que Nginx esté corriendo
+            if ! systemctl is-active --quiet nginx; then
+              echo "FAIL: Nginx no está corriendo"
+              exit 1
+            fi
+            
+            # Verificar que el backend esté corriendo
+            if ! curl -f http://localhost:8080/health > /dev/null 2>&1; then
+              echo "FAIL: Backend no está respondiendo"
+              exit 1
+            fi
+            
+            # Verificar que el frontend esté accesible
+            if ! curl -f http://localhost/ > /dev/null 2>&1; then
+              echo "FAIL: Frontend no está accesible"
+              exit 1
+            fi
+            
+            echo "OK"
+            exit 0
+            EOF
+            chmod +x /opt/webapp/health.sh
+            
+            # Configurar CloudWatch Agent
+            yum install -y amazon-cloudwatch-agent
+            cat > /opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json << 'EOF'
+            {
+              "logs": {
+                "logs_collected": {
+                  "files": {
+                    "collect_list": [
+                      {
+                        "file_path": "/var/log/messages",
+                        "log_group_name": "/aws/ec2/webapp",
+                        "log_stream_name": "{instance_id}"
+                      },
+                      {
+                        "file_path": "/var/log/nginx/access.log",
+                        "log_group_name": "/aws/ec2/nginx/access",
+                        "log_stream_name": "{instance_id}"
+                      },
+                      {
+                        "file_path": "/var/log/nginx/error.log",
+                        "log_group_name": "/aws/ec2/nginx/error",
+                        "log_stream_name": "{instance_id}"
+                      },
+                      {
+                        "file_path": "/var/log/cloud-init.log",
+                        "log_group_name": "/aws/ec2/cloud-init",
+                        "log_stream_name": "{instance_id}"
+                      },
+                      {
+                        "file_path": "/var/log/cloud-init-output.log",
+                        "log_group_name": "/aws/ec2/cloud-init-output",
+                        "log_stream_name": "{instance_id}"
+                      },
+                      {
+                        "file_path": "/home/ec2-user/.pm2/logs/backend-api-out.log",
+                        "log_group_name": "/aws/ec2/pm2/backend-out",
+                        "log_stream_name": "{instance_id}"
+                      },
+                      {
+                        "file_path": "/home/ec2-user/.pm2/logs/backend-api-error.log",
+                        "log_group_name": "/aws/ec2/pm2/backend-error",
+                        "log_stream_name": "{instance_id}"
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+            EOF
+            systemctl enable amazon-cloudwatch-agent
+            systemctl start amazon-cloudwatch-agent
+        BlockDeviceMappings:
+          - DeviceName: /dev/xvda
+            Ebs:
+              VolumeSize: 20
+              VolumeType: gp3
+              Encrypted: true
+        TagSpecifications:
+          - ResourceType: instance
+            Tags:
+              - Key: Name
+                Value: !Sub ${AWS::StackName}-WebApp
+              - Key: Project
+                Value: data-pipeline
+
+
+  # Auto Scaling Group
+  AutoScalingGroup:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Properties:
+      AutoScalingGroupName: data-pipeline-asg
+      LaunchTemplate:
+        LaunchTemplateId: !Ref LaunchTemplate
+        Version: !GetAtt LaunchTemplate.LatestVersionNumber
+      MinSize: !Ref MinSize
+      MaxSize: !Ref MaxSize
+      DesiredCapacity: !Ref DesiredCapacity
+      VPCZoneIdentifier:
+        - !Ref PrivateSubnetId
+      TargetGroupARNs:
+        - !Ref FETargetGroup
+        - !Ref BETargetGroup
+      HealthCheckType: ELB
+      HealthCheckGracePeriod: 300
+      Tags:
+        - Key: Name
+          Value: data-pipeline-webapp
+          PropagateAtLaunch: true
+        - Key: Project
+          Value: data-pipeline
+          PropagateAtLaunch: true
+
+  # Auto Scaling Policy para escalar hacia arriba
+  ScaleUpPolicy:
+    Type: AWS::AutoScaling::ScalingPolicy
+    Properties:
+      AutoScalingGroupName: !Ref AutoScalingGroup
+      PolicyName: data-pipeline-scaleup
+      PolicyType: TargetTrackingScaling
+      TargetTrackingConfiguration:
+        PredefinedMetricSpecification:
+          PredefinedMetricType: ASGAverageCPUUtilization
+        TargetValue: 70.0
+
+  # Auto Scaling Policy para escalar hacia abajo
+  ScaleDownPolicy:
+    Type: AWS::AutoScaling::ScalingPolicy
+    Properties:
+      AutoScalingGroupName: !Ref AutoScalingGroup
+      PolicyName: data-pipeline-scaledown
+      PolicyType: TargetTrackingScaling
+      TargetTrackingConfiguration:
+        PredefinedMetricSpecification:
+          PredefinedMetricType: ASGAverageCPUUtilization
+        TargetValue: 30.0
+
+Outputs:
+  ApplicationLoadBalancerDNS:
+    Description: DNS name del Application Load Balancer
+    Value: !GetAtt ApplicationLoadBalancer.DNSName
+    Export:
+      Name: data-pipeline-alb-dns
+
+  ApplicationLoadBalancerArn:
+    Description: ARN del Application Load Balancer
+    Value: !GetAtt ApplicationLoadBalancer.LoadBalancerArn
+    Export:
+      Name: data-pipeline-alb-arn
+
+  FrontendTargetGroupArn:
+    Description: ARN del Target Group del Frontend
+    Value: !Ref FETargetGroup
+    Export:
+      Name: data-pipeline-fe-tg-arn
+
+  BackendTargetGroupArn:
+    Description: ARN del Target Group del Backend
+    Value: !Ref BETargetGroup
+    Export:
+      Name: data-pipeline-be-tg-arn
+
+  AutoScalingGroupName:
+    Description: Nombre del Auto Scaling Group
+    Value: !Ref AutoScalingGroup
+    Export:
+      Name: data-pipeline-asg-name
+
+  EC2SecurityGroupId:
+    Description: ID del Security Group para EC2
+    Value: !Ref EC2SecurityGroup
+    Export:
+      Name: data-pipeline-ec2-sg-id
+
+  LBSecurityGroupId:
+    Description: ID del Security Group para ALB
+    Value: !Ref LBSecurityGroup
+    Export:
+      Name: data-pipeline-lb-sg-id
+
+  WebAppURL:
+    Description: URL de la aplicación web
+    Value: !Sub http://${ApplicationLoadBalancer.DNSName}
+    Export:
+      Name: data-pipeline-webapp-url
+
+  APIURL:
+    Description: URL de la API
+    Value: !Sub http://${ApplicationLoadBalancer.DNSName}/api
+    Export:
+      Name: data-pipeline-api-url 

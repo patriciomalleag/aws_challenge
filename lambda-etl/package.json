@@ -1,0 +1,79 @@
+{
+  "name": "lambda-etl",
+  "version": "1.0.0",
+  "description": "Función Lambda para procesamiento ETL de archivos CSV a Parquet",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "nodemon src/index.js",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage",
+    "test:integration": "jest --config jest.integration.config.js",
+    "test-local": "node scripts/test-local.js",
+    "test-parquet": "node scripts/test-parquet-conversion.js",
+    "deploy": "serverless deploy",
+    "deploy:prod": "serverless deploy --stage production",
+    "remove": "serverless remove",
+    "logs": "serverless logs -f etl-processor",
+    "lint": "eslint src/",
+    "lint:fix": "eslint src/ --fix",
+    "build": "npm run lint && npm test",
+    "package": "serverless package"
+  },
+  "keywords": [
+    "aws",
+    "lambda",
+    "etl",
+    "csv",
+    "parquet",
+    "serverless",
+    "data-processing"
+  ],
+  "author": "AWS Academy Student",
+  "license": "MIT",
+  "dependencies": {
+    "aws-sdk": "^2.1450.0",
+    "csv-parser": "^3.0.0",
+    "csv-writer": "^1.6.0",
+    "uuid": "^9.0.0",
+    "moment": "^2.29.4",
+    "lodash": "^4.17.21",
+    "joi": "^17.9.2",
+    "winston": "^3.10.0",
+    "fs-extra": "^11.1.1",
+    "parquetjs": "^0.10.2"
+  },
+  "devDependencies": {
+    "jest": "^29.6.2",
+    "nodemon": "^3.0.1",
+    "eslint": "^8.47.0",
+    "eslint-config-standard": "^17.1.0",
+    "eslint-plugin-import": "^2.28.1",
+    "eslint-plugin-node": "^11.1.0",
+    "eslint-plugin-promise": "^6.1.1",
+    "serverless": "^3.33.0",
+    "serverless-offline": "^12.0.4",
+    "serverless-jest-plugin": "^3.1.0",
+    "supertest": "^6.3.3",
+    "nock": "^13.3.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "jest": {
+    "testEnvironment": "node",
+    "collectCoverageFrom": [
+      "src/**/*.js",
+      "!src/index.js"
+    ],
+    "coverageThreshold": {
+      "global": {
+        "branches": 80,
+        "functions": 80,
+        "lines": 80,
+        "statements": 80
+      }
+    }
+  }
+} 

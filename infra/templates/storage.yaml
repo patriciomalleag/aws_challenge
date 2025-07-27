@@ -1,0 +1,213 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Recursos de Almacenamiento para Pipeline de Datos Serverless - AWS Academy'
+
+Parameters:
+  S3BucketRaw:
+    Type: String
+    Description: Nombre del bucket S3 para archivos raw
+    
+  S3BucketCurated:
+    Type: String
+    Description: Nombre del bucket S3 para archivos curated
+    
+  DDBTableName:
+    Type: String
+    Description: Nombre de la tabla DynamoDB
+    
+  LabRoleArn:
+    Type: String
+    Description: ARN del rol LabRole preasignado
+
+Resources:
+  # S3 Bucket Raw
+  S3BucketRawResource:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Ref S3BucketRaw
+      VersioningConfiguration:
+        Status: Enabled
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      # NotificationConfiguration se configurará después de crear la función Lambda
+      LifecycleConfiguration:
+        Rules:
+          - Id: DeleteOldVersions
+            Status: Enabled
+            NoncurrentVersionExpirationInDays: 30
+          - Id: DeleteIncompleteMultipartUploads
+            Status: Enabled
+            AbortIncompleteMultipartUpload:
+              DaysAfterInitiation: 7
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName}-Raw-Bucket
+        - Key: Project
+          Value: data-pipeline
+        - Key: Purpose
+          Value: raw-data-storage
+
+  # S3 Bucket Curated
+  S3BucketCuratedResource:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Ref S3BucketCurated
+      VersioningConfiguration:
+        Status: Enabled
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      LifecycleConfiguration:
+        Rules:
+          - Id: DeleteOldVersions
+            Status: Enabled
+            NoncurrentVersionExpirationInDays: 90
+          - Id: DeleteIncompleteMultipartUploads
+            Status: Enabled
+            AbortIncompleteMultipartUpload:
+              DaysAfterInitiation: 7
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName}-Curated-Bucket
+        - Key: Project
+          Value: data-pipeline
+        - Key: Purpose
+          Value: curated-data-storage
+
+  # DynamoDB Table
+  DynamoDBTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Ref DDBTableName
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: fileId
+          AttributeType: S
+        - AttributeName: tableName
+          AttributeType: S
+        - AttributeName: createdAt
+          AttributeType: S
+        - AttributeName: status
+          AttributeType: S
+      KeySchema:
+        - AttributeName: fileId
+          KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: TableNameIndex
+          KeySchema:
+            - AttributeName: tableName
+              KeyType: HASH
+            - AttributeName: createdAt
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+        - IndexName: StatusIndex
+          KeySchema:
+            - AttributeName: status
+              KeyType: HASH
+            - AttributeName: createdAt
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName}-Datasets-Table
+        - Key: Project
+          Value: data-pipeline
+
+  # S3 Bucket Policy for Raw Bucket
+  S3BucketRawPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref S3BucketRawResource
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: AllowLambdaETL
+            Effect: Allow
+            Principal:
+              AWS: !Ref LabRoleArn
+            Action:
+              - s3:GetObject
+              - s3:PutObject
+              - s3:DeleteObject
+              - s3:ListBucket
+            Resource:
+              - !Sub arn:aws:s3:::${S3BucketRaw}
+              - !Sub arn:aws:s3:::${S3BucketRaw}/*
+          - Sid: DenyUnencryptedObjectUploads
+            Effect: Deny
+            Principal: '*'
+            Action: s3:PutObject
+            Resource: !Sub arn:aws:s3:::${S3BucketRaw}/*
+            Condition:
+              StringNotEquals:
+                s3:x-amz-server-side-encryption: AES256
+
+  # S3 Bucket Policy for Curated Bucket
+  S3BucketCuratedPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref S3BucketCuratedResource
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: AllowLambdaQuery
+            Effect: Allow
+            Principal:
+              AWS: !Ref LabRoleArn
+            Action:
+              - s3:GetObject
+              - s3:ListBucket
+            Resource:
+              - !Sub arn:aws:s3:::${S3BucketCurated}
+              - !Sub arn:aws:s3:::${S3BucketCurated}/*
+          - Sid: DenyUnencryptedObjectUploads
+            Effect: Deny
+            Principal: '*'
+            Action: s3:PutObject
+            Resource: !Sub arn:aws:s3:::${S3BucketCurated}/*
+            Condition:
+              StringNotEquals:
+                s3:x-amz-server-side-encryption: AES256
+
+
+
+Outputs:
+  S3BucketRawName:
+    Description: Nombre del bucket S3 para archivos raw
+    Value: !Ref S3BucketRawResource
+    Export:
+      Name: !Sub ${AWS::StackName}-S3-Raw-Bucket
+
+  S3BucketCuratedName:
+    Description: Nombre del bucket S3 para archivos curated
+    Value: !Ref S3BucketCuratedResource
+    Export:
+      Name: !Sub ${AWS::StackName}-S3-Curated-Bucket
+
+  DynamoDBTableName:
+    Description: Nombre de la tabla DynamoDB
+    Value: !Ref DynamoDBTable
+    Export:
+      Name: !Sub ${AWS::StackName}-DDB-Table
+
+  DynamoDBTableArn:
+    Description: ARN de la tabla DynamoDB
+    Value: !GetAtt DynamoDBTable.Arn
+    Export:
+      Name: !Sub ${AWS::StackName}-DDB-Table-ARN 

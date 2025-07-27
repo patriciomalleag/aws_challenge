@@ -1,0 +1,43 @@
+{
+  "name": "data-pipeline-shared",
+  "version": "1.0.0",
+  "description": "Utilidades y validadores compartidos para el pipeline de datos serverless",
+  "main": "index.js",
+  "scripts": {
+    "test": "jest",
+    "test:coverage": "jest --coverage",
+    "test:watch": "jest --watch",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix"
+  },
+  "keywords": [
+    "aws",
+    "serverless",
+    "data-pipeline",
+    "validation",
+    "utils"
+  ],
+  "author": "AWS Academy Student",
+  "license": "MIT",
+  "dependencies": {
+    "aws-sdk": "^2.1450.0",
+    "joi": "^17.9.2",
+    "winston": "^3.10.0",
+    "uuid": "^9.0.0",
+    "moment": "^2.29.4",
+    "duckdb": "^0.9.2",
+    "csv-parser": "^3.0.0",
+    "lodash": "^4.17.21"
+  },
+  "devDependencies": {
+    "jest": "^29.6.2",
+    "eslint": "^8.47.0",
+    "eslint-config-standard": "^17.1.0",
+    "eslint-plugin-import": "^2.28.1",
+    "eslint-plugin-node": "^11.1.0",
+    "eslint-plugin-promise": "^6.1.1"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+} 

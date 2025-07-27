@@ -1,0 +1,253 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Funciones Lambda para Pipeline de Datos Serverless - AWS Academy'
+
+Parameters:
+  LabRoleArn:
+    Type: String
+    Description: ARN del rol LabRole preasignado
+    
+  LambdaMemorySize:
+    Type: Number
+    Description: Tamaño de memoria para funciones Lambda (MB)
+    Default: 1024
+    MinValue: 128
+    MaxValue: 3008
+    
+  LambdaTimeout:
+    Type: Number
+    Description: Timeout para funciones Lambda (segundos)
+    Default: 300
+    MinValue: 3
+    MaxValue: 900
+    
+  # Network Stack Exports
+  VPCId:
+    Type: String
+    Description: ID de la VPC (importado del stack de red)
+    
+  PrivateSubnetId:
+    Type: String
+    Description: ID de la subred privada (importado del stack de red)
+    
+  LambdaSecurityGroupId:
+    Type: String
+    Description: ID del Security Group para Lambda (importado del stack de red)
+    
+  # Storage Stack Exports
+  S3BucketRawName:
+    Type: String
+    Description: Nombre del bucket S3 raw (importado del stack de almacenamiento)
+    
+  S3BucketCuratedName:
+    Type: String
+    Description: Nombre del bucket S3 curated (importado del stack de almacenamiento)
+    
+  DynamoDBTableName:
+    Type: String
+    Description: Nombre de la tabla DynamoDB (importado del stack de almacenamiento)
+
+Resources:
+  # Lambda ETL Function
+  LambdaETLFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub ${AWS::StackName}-ETL-Processor
+      Runtime: nodejs18.x
+      Handler: src/index.handler
+      Code:
+        ZipFile: |
+          exports.handler = async (event) => {
+            return { statusCode: 200, body: 'ETL Function Deployed' };
+          };
+      Role: !Ref LabRoleArn
+      Timeout: !Ref LambdaTimeout
+      MemorySize: !Ref LambdaMemorySize
+      Environment:
+        Variables:
+          S3_BUCKET_RAW: !Ref S3BucketRawName
+          S3_BUCKET_CURATED: !Ref S3BucketCuratedName
+          DDB_TABLE_NAME: !Ref DynamoDBTableName
+          NODE_ENV: production
+      VpcConfig:
+        SecurityGroupIds:
+          - !Ref LambdaSecurityGroupId
+        SubnetIds:
+          - !Ref PrivateSubnetId
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName}-ETL-Function
+        - Key: Project
+          Value: data-pipeline
+
+  # Lambda Query Function
+  LambdaQueryFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub ${AWS::StackName}-Query-Engine
+      Runtime: nodejs18.x
+      Handler: src/index.handler
+      Code:
+        ZipFile: |
+          exports.handler = async (event) => {
+            return { statusCode: 200, body: 'Query Function Deployed' };
+          };
+      Role: !Ref LabRoleArn
+      Timeout: !Ref LambdaTimeout
+      MemorySize: !Ref LambdaMemorySize
+      Environment:
+        Variables:
+          S3_BUCKET_CURATED: !Ref S3BucketCuratedName
+          DDB_TABLE_NAME: !Ref DynamoDBTableName
+          NODE_ENV: production
+          MAX_QUERY_TIMEOUT_MS: 30000
+          MAX_RESULT_ROWS: 1000
+      VpcConfig:
+        SecurityGroupIds:
+          - !Ref LambdaSecurityGroupId
+        SubnetIds:
+          - !Ref PrivateSubnetId
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName}-Query-Function
+        - Key: Project
+          Value: data-pipeline
+
+  # Lambda URL for Query Function
+  LambdaQueryURL:
+    Type: AWS::Lambda::Url
+    Properties:
+      TargetFunctionArn: !Ref LambdaQueryFunction
+      AuthType: NONE
+      Cors:
+        AllowCredentials: false
+        AllowHeaders: 
+          - 'Content-Type'
+          - 'X-Amz-Date'
+          - 'Authorization'
+          - 'X-Api-Key'
+          - 'X-Amz-Security-Token'
+          - 'X-Amz-User-Agent'
+        AllowMethods: 
+          - GET
+          - POST
+        AllowOrigins: 
+          - '*'
+        ExposeHeaders: 
+          - 'Content-Length'
+          - 'Content-Type'
+        MaxAge: 86400
+
+  # CloudWatch Log Groups
+  LambdaETLLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/${LambdaETLFunction}
+      RetentionInDays: 30
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName}-ETL-Logs
+        - Key: Project
+          Value: data-pipeline
+
+  LambdaQueryLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/${LambdaQueryFunction}
+      RetentionInDays: 30
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName}-Query-Logs
+        - Key: Project
+          Value: data-pipeline
+
+  # Lambda Permission for S3 Event
+  LambdaETLPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref LambdaETLFunction
+      Action: lambda:InvokeFunction
+      Principal: s3.amazonaws.com
+      SourceArn: !Sub arn:aws:s3:::${S3BucketRawName}
+
+  # CloudWatch Alarms for Lambda Functions
+  LambdaETLErrorAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub ${AWS::StackName}-ETL-Errors
+      AlarmDescription: Alarm for ETL Lambda function errors
+      MetricName: Errors
+      Namespace: AWS/Lambda
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 2
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref LambdaETLFunction
+      TreatMissingData: notBreaching
+
+  LambdaQueryErrorAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub ${AWS::StackName}-Query-Errors
+      AlarmDescription: Alarm for Query Lambda function errors
+      MetricName: Errors
+      Namespace: AWS/Lambda
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 2
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref LambdaQueryFunction
+      TreatMissingData: notBreaching
+
+  LambdaETLDurationAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub ${AWS::StackName}-ETL-Duration
+      AlarmDescription: Alarm for ETL Lambda function duration
+      MetricName: Duration
+      Namespace: AWS/Lambda
+      Statistic: Average
+      Period: 300
+      EvaluationPeriods: 2
+      Threshold: 300000
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref LambdaETLFunction
+      TreatMissingData: notBreaching
+
+Outputs:
+  LambdaQueryURL:
+    Description: URL pública de la función Lambda Query
+    Value: !Ref LambdaQueryURL
+    Export:
+      Name: !Sub ${AWS::StackName}-Query-URL
+
+  LambdaETLFunctionName:
+    Description: Nombre de la función Lambda ETL
+    Value: !Ref LambdaETLFunction
+    Export:
+      Name: !Sub ${AWS::StackName}-ETL-Function
+
+  LambdaQueryFunctionName:
+    Description: Nombre de la función Lambda Query
+    Value: !Ref LambdaQueryFunction
+    Export:
+      Name: !Sub ${AWS::StackName}-Query-Function
+
+  LambdaETLFunctionArn:
+    Description: ARN de la función Lambda ETL
+    Value: !GetAtt LambdaETLFunction.Arn
+    Export:
+      Name: !Sub ${AWS::StackName}-ETL-Function-ARN
+
+  LambdaQueryFunctionArn:
+    Description: ARN de la función Lambda Query
+    Value: !GetAtt LambdaQueryFunction.Arn
+    Export:
+      Name: !Sub ${AWS::StackName}-Query-Function-ARN 
