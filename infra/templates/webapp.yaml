@@ -218,6 +218,8 @@ Resources:
       LaunchTemplateData:
         ImageId: ami-0c02fb55956c7d316  # Amazon Linux 2 AMI (us-east-1)
         InstanceType: !Ref InstanceType
+        IamInstanceProfile:
+          Name: !Ref LabRoleArn
         SecurityGroupIds:
           - !Ref EC2SecurityGroup
         UserData:
