@@ -104,12 +104,7 @@ Resources:
         LabRoleArn: !Ref LabRoleArn
         VPCId: !GetAtt NetworkStack.Outputs.VPCId
         PublicSubnetId: !GetAtt NetworkStack.Outputs.PublicSubnetId
-        PublicSubnet2Id: !GetAtt NetworkStack.Outputs.PublicSubnet2Id
-        PrivateSubnetId: !GetAtt NetworkStack.Outputs.PrivateSubnetId
         InstanceType: t3.micro
-        MinSize: 1
-        MaxSize: 3
-        DesiredCapacity: 2
         S3BucketRaw: !GetAtt StorageStack.Outputs.S3BucketRawName
         S3BucketCurated: !GetAtt StorageStack.Outputs.S3BucketCuratedName
         S3BucketLogs: !GetAtt StorageStack.Outputs.S3BucketLogsName
@@ -134,18 +129,6 @@ Outputs:
     Value: !GetAtt NetworkStack.Outputs.PublicSubnetId
     Export:
       Name: !Sub ${AWS::StackName}-Public-Subnet-ID
-
-  PublicSubnet2Id:
-    Description: ID de la segunda subred pública
-    Value: !GetAtt NetworkStack.Outputs.PublicSubnet2Id
-    Export:
-      Name: !Sub ${AWS::StackName}-Public-Subnet-2-ID
-
-  PrivateSubnetId:
-    Description: ID de la subred privada
-    Value: !GetAtt NetworkStack.Outputs.PrivateSubnetId
-    Export:
-      Name: !Sub ${AWS::StackName}-Private-Subnet-ID
 
   LambdaSecurityGroupId:
     Description: ID del Security Group para Lambda
@@ -202,6 +185,31 @@ Outputs:
     Value: !GetAtt LambdaStack.Outputs.LambdaQueryFunctionName
     Export:
       Name: !Sub ${AWS::StackName}-Query-Function
+
+  # WebApp Outputs
+  WebAppInstanceId:
+    Description: ID de la instancia EC2
+    Value: !GetAtt WebAppStack.Outputs.WebAppInstanceId
+    Export:
+      Name: !Sub ${AWS::StackName}-WebApp-Instance-ID
+
+  WebAppPublicIP:
+    Description: IP pública de la instancia EC2
+    Value: !GetAtt WebAppStack.Outputs.WebAppPublicIP
+    Export:
+      Name: !Sub ${AWS::StackName}-WebApp-Public-IP
+
+  WebAppURL:
+    Description: URL de la aplicación web
+    Value: !GetAtt WebAppStack.Outputs.WebAppURL
+    Export:
+      Name: !Sub ${AWS::StackName}-WebApp-URL
+
+  APIURL:
+    Description: URL de la API
+    Value: !GetAtt WebAppStack.Outputs.APIURL
+    Export:
+      Name: !Sub ${AWS::StackName}-API-URL
 
   LambdaETLFunctionArn:
     Description: ARN de la función Lambda ETL
