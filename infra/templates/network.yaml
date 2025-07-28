@@ -12,15 +12,10 @@ Parameters:
     Description: CIDR block para la subred pública
     Default: 10.0.1.0/24
     
-  PublicSubnet2Cidr:
-    Type: String
-    Description: CIDR block para la segunda subred pública
-    Default: 10.0.2.0/24
-    
   PrivateSubnetCidr:
     Type: String
     Description: CIDR block para la subred privada
-    Default: 10.0.3.0/24
+    Default: 10.0.2.0/24
 
 Resources:
   # VPC
@@ -53,7 +48,7 @@ Resources:
       InternetGatewayId: !Ref InternetGateway
       VpcId: !Ref VPC
 
-  # Public Subnet 1
+  # Public Subnet
   PublicSubnet:
     Type: AWS::EC2::Subnet
     Properties:
@@ -63,21 +58,7 @@ Resources:
       MapPublicIpOnLaunch: true
       Tags:
         - Key: Name
-          Value: !Sub ${AWS::StackName}-Public-Subnet-1
-        - Key: Project
-          Value: data-pipeline
-
-  # Public Subnet 2
-  PublicSubnet2:
-    Type: AWS::EC2::Subnet
-    Properties:
-      VpcId: !Ref VPC
-      CidrBlock: !Ref PublicSubnet2Cidr
-      AvailabilityZone: !Select [1, !GetAZs '']
-      MapPublicIpOnLaunch: true
-      Tags:
-        - Key: Name
-          Value: !Sub ${AWS::StackName}-Public-Subnet-2
+          Value: !Sub ${AWS::StackName}-Public-Subnet
         - Key: Project
           Value: data-pipeline
 
@@ -162,12 +143,6 @@ Resources:
       SubnetId: !Ref PublicSubnet
       RouteTableId: !Ref PublicRouteTable
 
-  PublicSubnet2RouteTableAssociation:
-    Type: AWS::EC2::SubnetRouteTableAssociation
-    Properties:
-      SubnetId: !Ref PublicSubnet2
-      RouteTableId: !Ref PublicRouteTable
-
   PrivateSubnetRouteTableAssociation:
     Type: AWS::EC2::SubnetRouteTableAssociation
     Properties:
@@ -202,12 +177,6 @@ Outputs:
     Value: !Ref PublicSubnet
     Export:
       Name: !Sub ${AWS::StackName}-Public-Subnet-ID
-
-  PublicSubnet2Id:
-    Description: ID de la segunda subred pública
-    Value: !Ref PublicSubnet2
-    Export:
-      Name: !Sub ${AWS::StackName}-Public-Subnet-2-ID
 
   PrivateSubnetId:
     Description: ID de la subred privada

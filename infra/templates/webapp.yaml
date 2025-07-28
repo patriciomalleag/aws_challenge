@@ -129,9 +129,29 @@ Resources:
           log_message "Actualizando sistema..."
           yum update -y >> /var/log/userdata.log 2>&1
           
+          # Esperar a que las actualizaciones terminen
+          log_message "Esperando a que las actualizaciones terminen..."
+          while pgrep -f "yum|dnf" > /dev/null; do
+            log_message "Actualizaciones en progreso, esperando..."
+            sleep 30
+          done
+          
           # Instalar dependencias
           log_message "Instalando dependencias..."
-          yum install -y git nodejs npm nginx aws-cli >> /var/log/userdata.log 2>&1
+          yum install -y git nginx aws-cli >> /var/log/userdata.log 2>&1
+          
+          # Instalar Node.js desde el repositorio de Amazon Linux
+          log_message "Instalando Node.js..."
+          curl -sL https://rpm.nodesource.com/setup_18.x | bash - >> /var/log/userdata.log 2>&1
+          yum install -y nodejs >> /var/log/userdata.log 2>&1
+          
+          # Verificar que Node.js se instaló correctamente
+          log_message "Verificando instalación de Node.js..."
+          if ! command -v node &> /dev/null; then
+            log_message "ERROR: Node.js no se instaló correctamente"
+            exit 1
+          fi
+          log_message "Node.js instalado correctamente: $(node --version)"
           
           # Instalar PM2 para gestión de procesos
           log_message "Instalando PM2..."

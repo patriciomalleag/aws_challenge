@@ -232,14 +232,6 @@ Outputs:
     Description: URL de la API
     Value: !GetAtt WebAppStack.Outputs.APIURL
 
-  ApplicationLoadBalancerDNS:
-    Description: DNS name del Application Load Balancer
-    Value: !GetAtt WebAppStack.Outputs.ApplicationLoadBalancerDNS
-
-  AutoScalingGroupName:
-    Description: Nombre del Auto Scaling Group
-    Value: !GetAtt WebAppStack.Outputs.AutoScalingGroupName
-
   # Stack Information
   StackInfo:
     Description: Información del stack desplegado
