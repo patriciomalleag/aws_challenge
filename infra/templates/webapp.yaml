@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: 'Aplicación Web en EC2 - Stack para Frontend y Backend'
+Description: 'Aplicación Web en EC2 - Stack Simplificado para Frontend y Backend'
 
 Parameters:
   LabRoleArn:
@@ -12,42 +12,13 @@ Parameters:
     
   PublicSubnetId:
     Type: String
-    Description: ID de la subred pública para el Load Balancer
-    
-  PublicSubnet2Id:
-    Type: String
-    Description: ID de la segunda subred pública para el Load Balancer
-    
-  PrivateSubnetId:
-    Type: String
-    Description: ID de la subred privada para las instancias EC2
+    Description: ID de la subred pública para la instancia EC2
     
   InstanceType:
     Type: String
     Description: Tipo de instancia EC2
     Default: t3.micro
     AllowedValues: [t3.micro, t3.small, t3.medium, t2.micro, t2.small]
-    
-  MinSize:
-    Type: Number
-    Description: Número mínimo de instancias en el Auto Scaling Group
-    Default: 1
-    MinValue: 1
-    MaxValue: 10
-    
-  MaxSize:
-    Type: Number
-    Description: Número máximo de instancias en el Auto Scaling Group
-    Default: 3
-    MinValue: 1
-    MaxValue: 10
-    
-  DesiredCapacity:
-    Type: Number
-    Description: Número deseado de instancias en el Auto Scaling Group
-    Default: 2
-    MinValue: 1
-    MaxValue: 10
     
   S3BucketRaw:
     Type: String
@@ -68,60 +39,38 @@ Parameters:
   LambdaQueryFunctionName:
     Type: String
     Description: Nombre de la función Lambda Query
+    
+  KeyName:
+    Type: String
+    Description: Nombre del key pair para acceso SSH a la instancia
+    Default: ""
+
+Conditions:
+  HasKeyName: !Not [!Equals [!Ref KeyName, ""]]
 
 Resources:
-
-
-  # Security Group para el Application Load Balancer
-  LBSecurityGroup:
-    Type: AWS::EC2::SecurityGroup
-    Properties:
-      GroupDescription: Security group for Application Load Balancer
-      VpcId: !Ref VPCId
-      SecurityGroupIngress:
-        - IpProtocol: tcp
-          FromPort: 80
-          ToPort: 80
-          CidrIp: 0.0.0.0/0
-          Description: HTTP access
-        - IpProtocol: tcp
-          FromPort: 443
-          ToPort: 443
-          CidrIp: 0.0.0.0/0
-          Description: HTTPS access
-      SecurityGroupEgress:
-        - IpProtocol: -1
-          CidrIp: 0.0.0.0/0
-          Description: Allow all outbound traffic
-      Tags:
-        - Key: Name
-          Value: data-pipeline-lb-sg
-        - Key: Project
-          Value: data-pipeline
-
-  # Security Group para las instancias EC2
+  # Security Group para la instancia EC2
   EC2SecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupDescription: Security group for EC2 instances running the web application
+      GroupDescription: Security group for EC2 instance running the web application
       VpcId: !Ref VPCId
       SecurityGroupIngress:
         - IpProtocol: tcp
           FromPort: 80
           ToPort: 80
-          SourceSecurityGroupId: !Ref LBSecurityGroup
-          Description: HTTP access from ALB
+          CidrIp: 0.0.0.0/0
+          Description: HTTP access from internet
         - IpProtocol: tcp
           FromPort: 443
           ToPort: 443
-          SourceSecurityGroupId: !Ref LBSecurityGroup
-          Description: HTTPS access from ALB
-
+          CidrIp: 0.0.0.0/0
+          Description: HTTPS access from internet
         - IpProtocol: tcp
-          FromPort: 8080
-          ToPort: 8080
-          SourceSecurityGroupId: !Ref LBSecurityGroup
-          Description: Backend API port
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 0.0.0.0/0
+          Description: SSH access for debugging
       SecurityGroupEgress:
         - IpProtocol: -1
           CidrIp: 0.0.0.0/0
@@ -132,472 +81,323 @@ Resources:
         - Key: Project
           Value: data-pipeline
 
-  # Application Load Balancer
-  ApplicationLoadBalancer:
-    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+  # Instancia EC2
+  WebAppInstance:
+    Type: AWS::EC2::Instance
     Properties:
-      Name: data-pipeline-alb
-      Scheme: internet-facing
-      Type: application
-      IpAddressType: ipv4
-      Subnets:
-        - !Ref PublicSubnetId
-        - !Ref PublicSubnet2Id
-      SecurityGroups:
-        - !Ref LBSecurityGroup
+      ImageId: ami-0c02fb55956c7d316  # Amazon Linux 2 AMI (us-east-1)
+      InstanceType: !Ref InstanceType
+      SubnetId: !Ref PublicSubnetId
+      SecurityGroupIds:
+        - !Ref EC2SecurityGroup
+      IamInstanceProfile: !Ref LabRoleArn
+      KeyName: !If [HasKeyName, !Ref KeyName, !Ref AWS::NoValue]
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash
+          # Configurar logging a S3
+          LOG_BUCKET="$${S3BucketLogs}"
+          INSTANCE_ID=$$(curl -s http://169.254.169.254/latest/meta-data/instance-id)
+          REGION="$${AWS::Region}"
+          TIMESTAMP=$$(date +%Y%m%d_%H%M%S)
+          
+          # Función para enviar logs a S3
+          send_log_to_s3() {
+            local log_file="$$1"
+            local s3_key="userdata-logs/$$INSTANCE_ID/$$TIMESTAMP_$$(basename $$log_file)"
+            
+            if [ -f "$$log_file" ]; then
+              aws s3 cp "$$log_file" "s3://$$LOG_BUCKET/$$s3_key" --region "$$REGION" --sse AES256
+              echo "Log enviado a S3: s3://$$LOG_BUCKET/$$s3_key"
+            fi
+          }
+          
+          # Función para loggear con timestamp
+          log_message() {
+            local message="$$1"
+            local timestamp=$$(date '+%Y-%m-%d %H:%M:%S')
+            echo "[$$timestamp] $$message" | tee -a /var/log/userdata.log
+          }
+          
+          # Iniciar logging
+          log_message "=== USERDATA START ==="
+          log_message "Instance ID: $$INSTANCE_ID"
+          log_message "Region: $$REGION"
+          log_message "Log Bucket: $$LOG_BUCKET"
+          
+          # Actualizar sistema
+          log_message "Actualizando sistema..."
+          yum update -y >> /var/log/userdata.log 2>&1
+          
+          # Instalar dependencias
+          log_message "Instalando dependencias..."
+          yum install -y git nodejs npm nginx aws-cli >> /var/log/userdata.log 2>&1
+          
+          # Instalar PM2 para gestión de procesos
+          log_message "Instalando PM2..."
+          npm install -g pm2 >> /var/log/userdata.log 2>&1
+          
+          # Crear directorio de la aplicación
+          log_message "Creando directorio de aplicación..."
+          mkdir -p /opt/webapp
+          cd /opt/webapp
+          
+          # Clonar el repositorio desde GitHub
+          log_message "Clonando repositorio..."
+          if ! git clone https://github.com/patriciomalleag/aws_challenge.git . >> /var/log/userdata.log 2>&1; then
+            log_message "ERROR: No se pudo clonar el repositorio"
+            # Crear estructura básica si falla
+            mkdir -p frontend backend-api
+            log_message "Repository clone failed, creating basic structure"
+          else
+            log_message "Repositorio clonado exitosamente"
+          fi
+          
+          # Instalar dependencias del frontend
+          log_message "Instalando dependencias del frontend..."
+          cd frontend
+          if [ -f package.json ]; then
+            npm install >> /var/log/userdata.log 2>&1 || log_message "ERROR: Frontend npm install failed"
+            npm run build >> /var/log/userdata.log 2>&1 || log_message "ERROR: Frontend build failed"
+            log_message "Frontend build completado"
+          else
+            log_message "WARNING: No package.json found in frontend"
+          fi
+          
+          # Instalar dependencias del backend
+          log_message "Instalando dependencias del backend..."
+          cd ../backend-api
+          if [ -f package.json ]; then
+            npm install >> /var/log/userdata.log 2>&1 || log_message "ERROR: Backend npm install failed"
+            log_message "Backend dependencies instaladas"
+          else
+            log_message "WARNING: No package.json found in backend"
+          fi
+          
+          # Configurar variables de entorno para el backend
+          log_message "Configurando variables de entorno..."
+          cat > /opt/webapp/backend-api/.env << 'EOF'
+          PORT=8080
+          AWS_REGION=$${AWS::Region}
+          S3_BUCKET_RAW=$${S3BucketRaw}
+          S3_BUCKET_CURATED=$${S3BucketCurated}
+          S3_BUCKET_LOGS=$${S3BucketLogs}
+          DDB_TABLE_NAME=$${DDBTableName}
+          LAMBDA_QUERY_FUNCTION_NAME=$${LambdaQueryFunctionName}
+          EOF
+          
+          # Configurar Nginx para servir el frontend
+          log_message "Configurando Nginx..."
+          cat > /etc/nginx/conf.d/webapp.conf << 'EOF'
+          server {
+              listen 80;
+              server_name _;
+              
+              # Frontend (React)
+              location / {
+                  root /opt/webapp/frontend/build;
+                  try_files $$uri $$uri/ /index.html;
+                  add_header Cache-Control "no-cache, no-store, must-revalidate";
+              }
+              
+              # Backend API
+              location /api/ {
+                  proxy_pass http://localhost:8080;
+                  proxy_http_version 1.1;
+                  proxy_set_header Upgrade $$http_upgrade;
+                  proxy_set_header Connection 'upgrade';
+                  proxy_set_header Host $$host;
+                  proxy_set_header X-Real-IP $$remote_addr;
+                  proxy_set_header X-Forwarded-For $$proxy_add_x_forwarded_for;
+                  proxy_set_header X-Forwarded-Proto $$scheme;
+                  proxy_cache_bypass $$http_upgrade;
+              }
+              
+              # Health check endpoint
+              location /health {
+                  proxy_pass http://localhost:8080/health;
+                  proxy_set_header Host $$host;
+              }
+          }
+          EOF
+          
+          # Iniciar Nginx
+          log_message "Iniciando Nginx..."
+          systemctl enable nginx
+          systemctl start nginx >> /var/log/userdata.log 2>&1
+          
+          # Configurar PM2 para el backend
+          log_message "Configurando PM2..."
+          cd /opt/webapp/backend-api
+          if [ -f server.js ]; then
+            pm2 start server.js --name "backend-api" >> /var/log/userdata.log 2>&1 || log_message "ERROR: PM2 start failed"
+            pm2 startup >> /var/log/userdata.log 2>&1 || log_message "ERROR: PM2 startup failed"
+            pm2 save >> /var/log/userdata.log 2>&1 || log_message "ERROR: PM2 save failed"
+            log_message "PM2 configurado exitosamente"
+          else
+            log_message "No server.js found, creating basic health endpoint"
+            # Crear un servidor básico si no existe
+            cat > server.js << 'EOF'
+            const express = require('express');
+            const app = express();
+            const port = process.env.PORT || 8080;
+            
+            app.get('/health', (req, res) => {
+              res.status(200).json({ status: 'OK', timestamp: new Date().toISOString() });
+            });
+            
+            app.get('/api/test', (req, res) => {
+              res.status(200).json({ message: 'API is working' });
+            });
+            
+            app.listen(port, () => {
+              console.log('Server running on port ' + port);
+            });
+            EOF
+            
+            npm init -y >> /var/log/userdata.log 2>&1
+            npm install express >> /var/log/userdata.log 2>&1
+            pm2 start server.js --name "backend-api" >> /var/log/userdata.log 2>&1
+            pm2 startup >> /var/log/userdata.log 2>&1
+            pm2 save >> /var/log/userdata.log 2>&1
+            log_message "Servidor básico creado y configurado"
+          fi
+          
+          # Crear script de health check
+          log_message "Creando script de health check..."
+          cat > /opt/webapp/health.sh << 'EOF'
+          #!/bin/bash
+          # Verificar que Nginx esté corriendo
+          if ! systemctl is-active --quiet nginx; then
+            echo "FAIL: Nginx no está corriendo"
+            exit 1
+          fi
+          
+          # Verificar que el backend esté corriendo
+          if ! curl -f http://localhost:8080/health > /dev/null 2>&1; then
+            echo "FAIL: Backend no está respondiendo"
+            exit 1
+          fi
+          
+          # Verificar que el frontend esté accesible
+          if ! curl -f http://localhost/ > /dev/null 2>&1; then
+            echo "FAIL: Frontend no está accesible"
+            exit 1
+          fi
+          
+          echo "OK"
+          exit 0
+          EOF
+          chmod +x /opt/webapp/health.sh
+          
+          # Crear script para enviar logs periódicamente
+          log_message "Creando script de logging automático..."
+          cat > /opt/webapp/send-logs.sh << 'EOF'
+          #!/bin/bash
+          LOG_BUCKET="$${S3BucketLogs}"
+          INSTANCE_ID="$$INSTANCE_ID"
+          REGION="$$REGION"
+          
+          # Enviar logs principales
+          aws s3 cp /var/log/userdata.log "s3://$$LOG_BUCKET/userdata-logs/$$INSTANCE_ID/$$(date +%Y%m%d_%H%M%S)_userdata.log" --region "$$REGION" --sse AES256 2>/dev/null
+          
+          # Enviar logs de PM2 si existen
+          if [ -f /root/.pm2/logs/backend-api-out.log ]; then
+            aws s3 cp /root/.pm2/logs/backend-api-out.log "s3://$$LOG_BUCKET/pm2-logs/$$INSTANCE_ID/$$(date +%Y%m%d_%H%M%S)_backend-api-out.log" --region "$$REGION" --sse AES256 2>/dev/null
+          fi
+          
+          if [ -f /root/.pm2/logs/backend-api-error.log ]; then
+            aws s3 cp /root/.pm2/logs/backend-api-error.log "s3://$$LOG_BUCKET/pm2-logs/$$INSTANCE_ID/$$(date +%Y%m%d_%H%M%S)_backend-api-error.log" --region "$$REGION" --sse AES256 2>/dev/null
+          fi
+          
+          # Enviar logs de nginx si existen
+          if [ -f /var/log/nginx/access.log ]; then
+            aws s3 cp /var/log/nginx/access.log "s3://$$LOG_BUCKET/nginx-logs/$$INSTANCE_ID/$$(date +%Y%m%d_%H%M%S)_access.log" --region "$$REGION" --sse AES256 2>/dev/null
+          fi
+          
+          if [ -f /var/log/nginx/error.log ]; then
+            aws s3 cp /var/log/nginx/error.log "s3://$$LOG_BUCKET/nginx-logs/$$INSTANCE_ID/$$(date +%Y%m%d_%H%M%S)_error.log" --region "$$REGION" --sse AES256 2>/dev/null
+          fi
+          EOF
+          chmod +x /opt/webapp/send-logs.sh
+          
+          # Configurar cron job para enviar logs cada 5 minutos
+          echo "*/5 * * * * /opt/webapp/send-logs.sh" | crontab -
+          
+          # Enviar logs finales
+          log_message "=== USERDATA COMPLETED ==="
+          log_message "Enviando logs finales a S3..."
+          
+          # Enviar logs a S3
+          send_log_to_s3 "/var/log/userdata.log"
+          
+          # Verificar estado final
+          log_message "Verificando estado final de servicios..."
+          if systemctl is-active --quiet nginx; then
+            log_message "✓ Nginx está corriendo"
+          else
+            log_message "✗ Nginx NO está corriendo"
+          fi
+          
+          if curl -f http://localhost:8080/health > /dev/null 2>&1; then
+            log_message "✓ Backend está respondiendo"
+          else
+            log_message "✗ Backend NO está respondiendo"
+          fi
+          
+          # Enviar logs finales una vez más
+          send_log_to_s3 "/var/log/userdata.log"
+      BlockDeviceMappings:
+        - DeviceName: /dev/xvda
+          Ebs:
+            VolumeSize: 20
+            VolumeType: gp3
+            Encrypted: true
       Tags:
         - Key: Name
-          Value: data-pipeline-alb
+          Value: !Sub ${AWS::StackName}-WebApp
         - Key: Project
           Value: data-pipeline
 
-  # Target Group para el frontend (puerto 80)
-  FETargetGroup:
-    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+  # Elastic IP para la instancia
+  WebAppEIP:
+    Type: AWS::EC2::EIP
     Properties:
-      Name: data-pipeline-fe-tg
-      Port: 80
-      Protocol: HTTP
-      VpcId: !Ref VPCId
-      TargetType: instance
-      HealthCheckPath: /
-      HealthCheckIntervalSeconds: 30
-      HealthCheckTimeoutSeconds: 5
-      HealthyThresholdCount: 2
-      UnhealthyThresholdCount: 2
+      Domain: vpc
+      InstanceId: !Ref WebAppInstance
       Tags:
         - Key: Name
-          Value: data-pipeline-fe-tg
+          Value: !Sub ${AWS::StackName}-WebApp-EIP
         - Key: Project
           Value: data-pipeline
-
-  # Target Group para el backend (puerto 8080)
-  BETargetGroup:
-    Type: AWS::ElasticLoadBalancingV2::TargetGroup
-    Properties:
-      Name: data-pipeline-be-tg
-      Port: 8080
-      Protocol: HTTP
-      VpcId: !Ref VPCId
-      TargetType: instance
-      HealthCheckPath: /health
-      HealthCheckIntervalSeconds: 30
-      HealthCheckTimeoutSeconds: 5
-      HealthyThresholdCount: 2
-      UnhealthyThresholdCount: 2
-      Tags:
-        - Key: Name
-          Value: data-pipeline-be-tg
-        - Key: Project
-          Value: data-pipeline
-
-  # Listener para HTTP (puerto 80)
-  HTTPListener:
-    Type: AWS::ElasticLoadBalancingV2::Listener
-    Properties:
-      DefaultActions:
-        - Type: forward
-          TargetGroupArn: !Ref FETargetGroup
-      LoadBalancerArn: !Ref ApplicationLoadBalancer
-      Port: 80
-      Protocol: HTTP
-
-  # Listener Rule para API (puerto 80)
-  APIListenerRule:
-    Type: AWS::ElasticLoadBalancingV2::ListenerRule
-    Properties:
-      Actions:
-        - Type: forward
-          TargetGroupArn: !Ref BETargetGroup
-      Conditions:
-        - Field: path-pattern
-          Values:
-            - /api/*
-      ListenerArn: !Ref HTTPListener
-      Priority: 100
-
-  # Launch Template para las instancias EC2
-  LaunchTemplate:
-    Type: AWS::EC2::LaunchTemplate
-    Properties:
-      LaunchTemplateName: data-pipeline-lt
-      LaunchTemplateData:
-        ImageId: ami-0c02fb55956c7d316  # Amazon Linux 2 AMI (us-east-1)
-        InstanceType: !Ref InstanceType
-
-        SecurityGroupIds:
-          - !Ref EC2SecurityGroup
-        UserData:
-          Fn::Base64: !Sub |
-            #!/bin/bash
-            # Configurar logging a S3
-            LOG_BUCKET="$${S3BucketLogs}"
-            INSTANCE_ID=$(curl -s http://169.254.169.254/latest/meta-data/instance-id)
-            REGION="$${AWS::Region}"
-            TIMESTAMP=$(date +%Y%m%d_%H%M%S)
-            
-            # Función para enviar logs a S3
-            send_log_to_s3() {
-              local log_file="$1"
-              local s3_key="userdata-logs/$${INSTANCE_ID}/$${TIMESTAMP}_$(basename $log_file)"
-              
-              if [ -f "$log_file" ]; then
-                aws s3 cp "$log_file" "s3://$${LOG_BUCKET}/$${s3_key}" --region "$${REGION}" --sse AES256
-                echo "Log enviado a S3: s3://$${LOG_BUCKET}/$${s3_key}"
-              fi
-            }
-            
-            # Función para loggear con timestamp
-            log_message() {
-              local message="$1"
-              local timestamp=$(date '+%Y-%m-%d %H:%M:%S')
-              echo "[$${timestamp}] $${message}" | tee -a /var/log/userdata.log
-            }
-            
-            # Iniciar logging
-            log_message "=== USERDATA START ==="
-            log_message "Instance ID: $${INSTANCE_ID}"
-            log_message "Region: $${REGION}"
-            log_message "Log Bucket: $${LOG_BUCKET}"
-            
-            # Actualizar sistema
-            log_message "Actualizando sistema..."
-            yum update -y >> /var/log/userdata.log 2>&1
-            
-            # Instalar dependencias
-            log_message "Instalando dependencias..."
-            yum install -y git nodejs npm nginx aws-cli >> /var/log/userdata.log 2>&1
-            
-            # Instalar PM2 para gestión de procesos
-            log_message "Instalando PM2..."
-            npm install -g pm2 >> /var/log/userdata.log 2>&1
-            
-            # Crear directorio de la aplicación
-            log_message "Creando directorio de aplicación..."
-            mkdir -p /opt/webapp
-            cd /opt/webapp
-            
-            # Clonar el repositorio desde GitHub
-            log_message "Clonando repositorio..."
-            if ! git clone https://github.com/patriciomalleag/aws_challenge.git . >> /var/log/userdata.log 2>&1; then
-              log_message "ERROR: No se pudo clonar el repositorio"
-              # Crear estructura básica si falla
-              mkdir -p frontend backend-api
-              log_message "Repository clone failed, creating basic structure"
-            else
-              log_message "Repositorio clonado exitosamente"
-            fi
-            
-            # Instalar dependencias del frontend
-            log_message "Instalando dependencias del frontend..."
-            cd frontend
-            if [ -f package.json ]; then
-              npm install >> /var/log/userdata.log 2>&1 || log_message "ERROR: Frontend npm install failed"
-              npm run build >> /var/log/userdata.log 2>&1 || log_message "ERROR: Frontend build failed"
-              log_message "Frontend build completado"
-            else
-              log_message "WARNING: No package.json found in frontend"
-            fi
-            
-            # Instalar dependencias del backend
-            log_message "Instalando dependencias del backend..."
-            cd ../backend-api
-            if [ -f package.json ]; then
-              npm install >> /var/log/userdata.log 2>&1 || log_message "ERROR: Backend npm install failed"
-              log_message "Backend dependencies instaladas"
-            else
-              log_message "WARNING: No package.json found in backend"
-            fi
-            
-            # Configurar variables de entorno para el backend
-            log_message "Configurando variables de entorno..."
-            cat > /opt/webapp/backend-api/.env << 'EOF'
-            PORT=8080
-            AWS_REGION=$${AWS::Region}
-            S3_BUCKET_RAW=$${S3BucketRaw}
-            S3_BUCKET_CURATED=$${S3BucketCurated}
-            S3_BUCKET_LOGS=$${S3BucketLogs}
-            DDB_TABLE_NAME=$${DDBTableName}
-            LAMBDA_QUERY_FUNCTION_NAME=$${LambdaQueryFunctionName}
-            EOF
-            
-            # Configurar Nginx para servir el frontend
-            log_message "Configurando Nginx..."
-            cat > /etc/nginx/conf.d/webapp.conf << 'EOF'
-            server {
-                listen 80;
-                server_name _;
-                
-                # Frontend (React)
-                location / {
-                    root /opt/webapp/frontend/build;
-                    try_files $uri $uri/ /index.html;
-                    add_header Cache-Control "no-cache, no-store, must-revalidate";
-                }
-                
-                # Backend API
-                location /api/ {
-                    proxy_pass http://localhost:8080;
-                    proxy_http_version 1.1;
-                    proxy_set_header Upgrade $http_upgrade;
-                    proxy_set_header Connection 'upgrade';
-                    proxy_set_header Host $host;
-                    proxy_set_header X-Real-IP $remote_addr;
-                    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-                    proxy_set_header X-Forwarded-Proto $scheme;
-                    proxy_cache_bypass $http_upgrade;
-                }
-                
-                # Health check endpoint
-                location /health {
-                    proxy_pass http://localhost:8080/health;
-                    proxy_set_header Host $host;
-                }
-            }
-            EOF
-            
-            # Iniciar Nginx
-            log_message "Iniciando Nginx..."
-            systemctl enable nginx
-            systemctl start nginx >> /var/log/userdata.log 2>&1
-            
-            # Configurar PM2 para el backend
-            log_message "Configurando PM2..."
-            cd /opt/webapp/backend-api
-            if [ -f server.js ]; then
-              pm2 start server.js --name "backend-api" >> /var/log/userdata.log 2>&1 || log_message "ERROR: PM2 start failed"
-              pm2 startup >> /var/log/userdata.log 2>&1 || log_message "ERROR: PM2 startup failed"
-              pm2 save >> /var/log/userdata.log 2>&1 || log_message "ERROR: PM2 save failed"
-              log_message "PM2 configurado exitosamente"
-            else
-              log_message "No server.js found, creating basic health endpoint"
-              # Crear un servidor básico si no existe
-              cat > server.js << 'EOF'
-              const express = require('express');
-              const app = express();
-              const port = process.env.PORT || 8080;
-              
-              app.get('/health', (req, res) => {
-                res.status(200).json({ status: 'OK', timestamp: new Date().toISOString() });
-              });
-              
-              app.get('/api/test', (req, res) => {
-                res.status(200).json({ message: 'API is working' });
-              });
-              
-              app.listen(port, () => {
-                console.log('Server running on port ' + port);
-              });
-              EOF
-              
-              npm init -y >> /var/log/userdata.log 2>&1
-              npm install express >> /var/log/userdata.log 2>&1
-              pm2 start server.js --name "backend-api" >> /var/log/userdata.log 2>&1
-              pm2 startup >> /var/log/userdata.log 2>&1
-              pm2 save >> /var/log/userdata.log 2>&1
-              log_message "Servidor básico creado y configurado"
-            fi
-            
-            # Crear script de health check
-            log_message "Creando script de health check..."
-            cat > /opt/webapp/health.sh << 'EOF'
-            #!/bin/bash
-            # Verificar que Nginx esté corriendo
-            if ! systemctl is-active --quiet nginx; then
-              echo "FAIL: Nginx no está corriendo"
-              exit 1
-            fi
-            
-            # Verificar que el backend esté corriendo
-            if ! curl -f http://localhost:8080/health > /dev/null 2>&1; then
-              echo "FAIL: Backend no está respondiendo"
-              exit 1
-            fi
-            
-            # Verificar que el frontend esté accesible
-            if ! curl -f http://localhost/ > /dev/null 2>&1; then
-              echo "FAIL: Frontend no está accesible"
-              exit 1
-            fi
-            
-            echo "OK"
-            exit 0
-            EOF
-            chmod +x /opt/webapp/health.sh
-            
-            # Crear script para enviar logs periódicamente
-            log_message "Creando script de logging automático..."
-            cat > /opt/webapp/send-logs.sh << 'EOF'
-            #!/bin/bash
-            LOG_BUCKET="$${S3BucketLogs}"
-            INSTANCE_ID="$${INSTANCE_ID}"
-            REGION="$${REGION}"
-            
-            # Enviar logs principales
-            aws s3 cp /var/log/userdata.log "s3://$${LOG_BUCKET}/userdata-logs/$${INSTANCE_ID}/$(date +%Y%m%d_%H%M%S)_userdata.log" --region "$${REGION}" --sse AES256 2>/dev/null
-            
-            # Enviar logs de PM2 si existen
-            if [ -f /root/.pm2/logs/backend-api-out.log ]; then
-              aws s3 cp /root/.pm2/logs/backend-api-out.log "s3://$${LOG_BUCKET}/pm2-logs/$${INSTANCE_ID}/$(date +%Y%m%d_%H%M%S)_backend-api-out.log" --region "$${REGION}" --sse AES256 2>/dev/null
-            fi
-            
-            if [ -f /root/.pm2/logs/backend-api-error.log ]; then
-              aws s3 cp /root/.pm2/logs/backend-api-error.log "s3://$${LOG_BUCKET}/pm2-logs/$${INSTANCE_ID}/$(date +%Y%m%d_%H%M%S)_backend-api-error.log" --region "$${REGION}" --sse AES256 2>/dev/null
-            fi
-            
-            # Enviar logs de nginx si existen
-            if [ -f /var/log/nginx/access.log ]; then
-              aws s3 cp /var/log/nginx/access.log "s3://$${LOG_BUCKET}/nginx-logs/$${INSTANCE_ID}/$(date +%Y%m%d_%H%M%S)_access.log" --region "$${REGION}" --sse AES256 2>/dev/null
-            fi
-            
-            if [ -f /var/log/nginx/error.log ]; then
-              aws s3 cp /var/log/nginx/error.log "s3://$${LOG_BUCKET}/nginx-logs/$${INSTANCE_ID}/$(date +%Y%m%d_%H%M%S)_error.log" --region "$${REGION}" --sse AES256 2>/dev/null
-            fi
-            EOF
-            chmod +x /opt/webapp/send-logs.sh
-            
-            # Configurar cron job para enviar logs cada 5 minutos
-            echo "*/5 * * * * /opt/webapp/send-logs.sh" | crontab -
-            
-            # Enviar logs finales
-            log_message "=== USERDATA COMPLETED ==="
-            log_message "Enviando logs finales a S3..."
-            
-            # Enviar logs a S3
-            send_log_to_s3 "/var/log/userdata.log"
-            
-            # Verificar estado final
-            log_message "Verificando estado final de servicios..."
-            if systemctl is-active --quiet nginx; then
-              log_message "✓ Nginx está corriendo"
-            else
-              log_message "✗ Nginx NO está corriendo"
-            fi
-            
-            if curl -f http://localhost:8080/health > /dev/null 2>&1; then
-              log_message "✓ Backend está respondiendo"
-            else
-              log_message "✗ Backend NO está respondiendo"
-            fi
-            
-            # Enviar logs finales una vez más
-            send_log_to_s3 "/var/log/userdata.log"
-        BlockDeviceMappings:
-          - DeviceName: /dev/xvda
-            Ebs:
-              VolumeSize: 20
-              VolumeType: gp3
-              Encrypted: true
-        TagSpecifications:
-          - ResourceType: instance
-            Tags:
-              - Key: Name
-                Value: !Sub ${AWS::StackName}-WebApp
-              - Key: Project
-                Value: data-pipeline
-
-
-  # Auto Scaling Group
-  AutoScalingGroup:
-    Type: AWS::AutoScaling::AutoScalingGroup
-    Properties:
-      AutoScalingGroupName: data-pipeline-asg
-      LaunchTemplate:
-        LaunchTemplateId: !Ref LaunchTemplate
-        Version: !GetAtt LaunchTemplate.LatestVersionNumber
-      MinSize: !Ref MinSize
-      MaxSize: !Ref MaxSize
-      DesiredCapacity: !Ref DesiredCapacity
-      VPCZoneIdentifier:
-        - !Ref PrivateSubnetId
-      TargetGroupARNs:
-        - !Ref FETargetGroup
-        - !Ref BETargetGroup
-      HealthCheckType: ELB
-      HealthCheckGracePeriod: 900
-      Tags:
-        - Key: Name
-          Value: data-pipeline-webapp
-          PropagateAtLaunch: true
-        - Key: Project
-          Value: data-pipeline
-          PropagateAtLaunch: true
-
-  # Auto Scaling Policy para escalar hacia arriba
-  ScaleUpPolicy:
-    Type: AWS::AutoScaling::ScalingPolicy
-    Properties:
-      AutoScalingGroupName: !Ref AutoScalingGroup
-      PolicyName: data-pipeline-scaleup
-      PolicyType: TargetTrackingScaling
-      TargetTrackingConfiguration:
-        PredefinedMetricSpecification:
-          PredefinedMetricType: ASGAverageCPUUtilization
-        TargetValue: 70.0
-
-  # Auto Scaling Policy para escalar hacia abajo
-  ScaleDownPolicy:
-    Type: AWS::AutoScaling::ScalingPolicy
-    Properties:
-      AutoScalingGroupName: !Ref AutoScalingGroup
-      PolicyName: data-pipeline-scaledown
-      PolicyType: TargetTrackingScaling
-      TargetTrackingConfiguration:
-        PredefinedMetricSpecification:
-          PredefinedMetricType: ASGAverageCPUUtilization
-        TargetValue: 30.0
 
 Outputs:
-  ApplicationLoadBalancerDNS:
-    Description: DNS name del Application Load Balancer
-    Value: !GetAtt ApplicationLoadBalancer.DNSName
+  WebAppInstanceId:
+    Description: ID de la instancia EC2
+    Value: !Ref WebAppInstance
     Export:
-      Name: data-pipeline-alb-dns
+      Name: data-pipeline-webapp-instance-id
 
-  ApplicationLoadBalancerArn:
-    Description: ARN del Application Load Balancer
-    Value: !GetAtt ApplicationLoadBalancer.LoadBalancerArn
+  WebAppPublicIP:
+    Description: IP pública de la instancia EC2
+    Value: !Ref WebAppEIP
     Export:
-      Name: data-pipeline-alb-arn
-
-  FrontendTargetGroupArn:
-    Description: ARN del Target Group del Frontend
-    Value: !Ref FETargetGroup
-    Export:
-      Name: data-pipeline-fe-tg-arn
-
-  BackendTargetGroupArn:
-    Description: ARN del Target Group del Backend
-    Value: !Ref BETargetGroup
-    Export:
-      Name: data-pipeline-be-tg-arn
-
-  AutoScalingGroupName:
-    Description: Nombre del Auto Scaling Group
-    Value: !Ref AutoScalingGroup
-    Export:
-      Name: data-pipeline-asg-name
-
-  EC2SecurityGroupId:
-    Description: ID del Security Group para EC2
-    Value: !Ref EC2SecurityGroup
-    Export:
-      Name: data-pipeline-ec2-sg-id
-
-  LBSecurityGroupId:
-    Description: ID del Security Group para ALB
-    Value: !Ref LBSecurityGroup
-    Export:
-      Name: data-pipeline-lb-sg-id
+      Name: data-pipeline-webapp-public-ip
 
   WebAppURL:
     Description: URL de la aplicación web
-    Value: !Sub http://${ApplicationLoadBalancer.DNSName}
+    Value: !Sub http://${WebAppEIP}
     Export:
       Name: data-pipeline-webapp-url
 
   APIURL:
     Description: URL de la API
-    Value: !Sub http://${ApplicationLoadBalancer.DNSName}/api
+    Value: !Sub http://${WebAppEIP}/api
     Export:
-      Name: data-pipeline-api-url 
+      Name: data-pipeline-api-url
+
+  EC2SecurityGroupId:
+    Description: ID del Security Group para EC2
+    Value: !Ref EC2SecurityGroup
+    Export:
+      Name: data-pipeline-ec2-sg-id 

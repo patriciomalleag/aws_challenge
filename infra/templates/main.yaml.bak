@@ -14,6 +14,10 @@ Parameters:
     Type: String
     Description: Nombre del bucket S3 para archivos curated
     
+  S3BucketLogs:
+    Type: String
+    Description: Nombre del bucket S3 para logs de la aplicación
+    
   DDBTableName:
     Type: String
     Description: Nombre de la tabla DynamoDB
@@ -55,6 +59,7 @@ Resources:
       Parameters:
         S3BucketRaw: !Ref S3BucketRaw
         S3BucketCurated: !Ref S3BucketCurated
+        S3BucketLogs: !Ref S3BucketLogs
         DDBTableName: !Ref DDBTableName
         LabRoleArn: !Ref LabRoleArn
       Tags:
@@ -107,6 +112,7 @@ Resources:
         DesiredCapacity: 2
         S3BucketRaw: !GetAtt StorageStack.Outputs.S3BucketRawName
         S3BucketCurated: !GetAtt StorageStack.Outputs.S3BucketCuratedName
+        S3BucketLogs: !GetAtt StorageStack.Outputs.S3BucketLogsName
         DDBTableName: !GetAtt StorageStack.Outputs.DynamoDBTableName
         LambdaQueryFunctionName: !GetAtt LambdaStack.Outputs.LambdaQueryFunctionName
       Tags:
@@ -159,6 +165,12 @@ Outputs:
     Value: !GetAtt StorageStack.Outputs.S3BucketCuratedName
     Export:
       Name: !Sub ${AWS::StackName}-S3-Curated-Bucket
+
+  S3BucketLogsName:
+    Description: Nombre del bucket S3 para logs
+    Value: !GetAtt StorageStack.Outputs.S3BucketLogsName
+    Export:
+      Name: !Sub ${AWS::StackName}-S3-Logs-Bucket
 
   DynamoDBTableName:
     Description: Nombre de la tabla DynamoDB
