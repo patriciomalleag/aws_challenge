@@ -10,6 +10,10 @@ Parameters:
     Type: String
     Description: Nombre del bucket S3 para archivos curated
     
+  S3BucketLogs:
+    Type: String
+    Description: Nombre del bucket S3 para logs de la aplicación
+    
   DDBTableName:
     Type: String
     Description: Nombre de la tabla DynamoDB
@@ -85,6 +89,39 @@ Resources:
           Value: data-pipeline
         - Key: Purpose
           Value: curated-data-storage
+
+  # S3 Bucket Logs
+  S3BucketLogsResource:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Ref S3BucketLogs
+      VersioningConfiguration:
+        Status: Enabled
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      LifecycleConfiguration:
+        Rules:
+          - Id: DeleteOldLogs
+            Status: Enabled
+            ExpirationInDays: 90
+          - Id: DeleteIncompleteMultipartUploads
+            Status: Enabled
+            AbortIncompleteMultipartUpload:
+              DaysAfterInitiation: 7
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName}-Logs-Bucket
+        - Key: Project
+          Value: data-pipeline
+        - Key: Purpose
+          Value: application-logs
 
   # DynamoDB Table
   DynamoDBTable:
@@ -185,6 +222,33 @@ Resources:
               StringNotEquals:
                 s3:x-amz-server-side-encryption: AES256
 
+  # S3 Bucket Policy for Logs Bucket
+  S3BucketLogsPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref S3BucketLogsResource
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: AllowEC2Logs
+            Effect: Allow
+            Principal:
+              AWS: !Ref LabRoleArn
+            Action:
+              - s3:PutObject
+              - s3:GetObject
+              - s3:ListBucket
+            Resource:
+              - !Sub arn:aws:s3:::${S3BucketLogs}
+              - !Sub arn:aws:s3:::${S3BucketLogs}/*
+          - Sid: DenyUnencryptedObjectUploads
+            Effect: Deny
+            Principal: '*'
+            Action: s3:PutObject
+            Resource: !Sub arn:aws:s3:::${S3BucketLogs}/*
+            Condition:
+              StringNotEquals:
+                s3:x-amz-server-side-encryption: AES256
 
 
 Outputs:
@@ -199,6 +263,12 @@ Outputs:
     Value: !Ref S3BucketCuratedResource
     Export:
       Name: !Sub ${AWS::StackName}-S3-Curated-Bucket
+
+  S3BucketLogsName:
+    Description: Nombre del bucket S3 para logs
+    Value: !Ref S3BucketLogsResource
+    Export:
+      Name: !Sub ${AWS::StackName}-S3-Logs-Bucket
 
   DynamoDBTableName:
     Description: Nombre de la tabla DynamoDB
