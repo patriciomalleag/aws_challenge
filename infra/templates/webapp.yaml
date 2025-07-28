@@ -96,34 +96,34 @@ Resources:
         Fn::Base64: !Sub |
           #!/bin/bash
           # Configurar logging a S3
-          LOG_BUCKET="$${S3BucketLogs}"
-          INSTANCE_ID=$$(curl -s http://169.254.169.254/latest/meta-data/instance-id)
-          REGION="$${AWS::Region}"
-          TIMESTAMP=$$(date +%Y%m%d_%H%M%S)
+          LOG_BUCKET="${S3BucketLogs}"
+          INSTANCE_ID=`curl -s http://169.254.169.254/latest/meta-data/instance-id`
+          REGION="${AWS::Region}"
+          TIMESTAMP=`date +%Y%m%d_%H%M%S`
           
           # Función para enviar logs a S3
           send_log_to_s3() {
             local log_file="$$1"
-            local s3_key="userdata-logs/$$INSTANCE_ID/$$TIMESTAMP_$$(basename $$log_file)"
+            local s3_key="userdata-logs/$$INSTANCE_ID/$$TIMESTAMP_`basename $$log_file`"
             
             if [ -f "$$log_file" ]; then
-              aws s3 cp "$$log_file" "s3://$$LOG_BUCKET/$$s3_key" --region "$$REGION" --sse AES256
-              echo "Log enviado a S3: s3://$$LOG_BUCKET/$$s3_key"
+              aws s3 cp "$$log_file" "s3://${S3BucketLogs}/$$s3_key" --region "${AWS::Region}" --sse AES256
+              echo "Log enviado a S3: s3://${S3BucketLogs}/$$s3_key"
             fi
           }
           
           # Función para loggear con timestamp
           log_message() {
             local message="$$1"
-            local timestamp=$$(date '+%Y-%m-%d %H:%M:%S')
+            local timestamp=`date '+%Y-%m-%d %H:%M:%S'`
             echo "[$$timestamp] $$message" | tee -a /var/log/userdata.log
           }
           
           # Iniciar logging
           log_message "=== USERDATA START ==="
           log_message "Instance ID: $$INSTANCE_ID"
-          log_message "Region: $$REGION"
-          log_message "Log Bucket: $$LOG_BUCKET"
+          log_message "Region: ${AWS::Region}"
+          log_message "Log Bucket: ${S3BucketLogs}"
           
           # Actualizar sistema
           log_message "Actualizando sistema..."
@@ -151,7 +151,7 @@ Resources:
             log_message "ERROR: Node.js no se instaló correctamente"
             exit 1
           fi
-          log_message "Node.js instalado correctamente: $(node --version)"
+          log_message "Node.js instalado correctamente: `node --version`"
           
           # Instalar PM2 para gestión de procesos
           log_message "Instalando PM2..."
@@ -196,14 +196,14 @@ Resources:
           
           # Configurar variables de entorno para el backend
           log_message "Configurando variables de entorno..."
-          cat > /opt/webapp/backend-api/.env << 'EOF'
+          cat > /opt/webapp/backend-api/.env << EOF
           PORT=8080
-          AWS_REGION=$${AWS::Region}
-          S3_BUCKET_RAW=$${S3BucketRaw}
-          S3_BUCKET_CURATED=$${S3BucketCurated}
-          S3_BUCKET_LOGS=$${S3BucketLogs}
-          DDB_TABLE_NAME=$${DDBTableName}
-          LAMBDA_QUERY_FUNCTION_NAME=$${LambdaQueryFunctionName}
+          AWS_REGION=${AWS::Region}
+          S3_BUCKET_RAW=${S3BucketRaw}
+          S3_BUCKET_CURATED=${S3BucketCurated}
+          S3_BUCKET_LOGS=${S3BucketLogs}
+          DDB_TABLE_NAME=${DDBTableName}
+          LAMBDA_QUERY_FUNCTION_NAME=${LambdaQueryFunctionName}
           EOF
           
           # Configurar Nginx para servir el frontend
@@ -312,31 +312,31 @@ Resources:
           
           # Crear script para enviar logs periódicamente
           log_message "Creando script de logging automático..."
-          cat > /opt/webapp/send-logs.sh << 'EOF'
+          cat > /opt/webapp/send-logs.sh << EOF
           #!/bin/bash
-          LOG_BUCKET="$${S3BucketLogs}"
+          LOG_BUCKET="${S3BucketLogs}"
           INSTANCE_ID="$$INSTANCE_ID"
-          REGION="$$REGION"
+          REGION="${AWS::Region}"
           
           # Enviar logs principales
-          aws s3 cp /var/log/userdata.log "s3://$$LOG_BUCKET/userdata-logs/$$INSTANCE_ID/$$(date +%Y%m%d_%H%M%S)_userdata.log" --region "$$REGION" --sse AES256 2>/dev/null
+          aws s3 cp /var/log/userdata.log "s3://${S3BucketLogs}/userdata-logs/$$INSTANCE_ID/`date +%Y%m%d_%H%M%S`_userdata.log" --region "${AWS::Region}" --sse AES256 2>/dev/null
           
           # Enviar logs de PM2 si existen
           if [ -f /root/.pm2/logs/backend-api-out.log ]; then
-            aws s3 cp /root/.pm2/logs/backend-api-out.log "s3://$$LOG_BUCKET/pm2-logs/$$INSTANCE_ID/$$(date +%Y%m%d_%H%M%S)_backend-api-out.log" --region "$$REGION" --sse AES256 2>/dev/null
+            aws s3 cp /root/.pm2/logs/backend-api-out.log "s3://${S3BucketLogs}/pm2-logs/$$INSTANCE_ID/`date +%Y%m%d_%H%M%S`_backend-api-out.log" --region "${AWS::Region}" --sse AES256 2>/dev/null
           fi
           
           if [ -f /root/.pm2/logs/backend-api-error.log ]; then
-            aws s3 cp /root/.pm2/logs/backend-api-error.log "s3://$$LOG_BUCKET/pm2-logs/$$INSTANCE_ID/$$(date +%Y%m%d_%H%M%S)_backend-api-error.log" --region "$$REGION" --sse AES256 2>/dev/null
+            aws s3 cp /root/.pm2/logs/backend-api-error.log "s3://${S3BucketLogs}/pm2-logs/$$INSTANCE_ID/`date +%Y%m%d_%H%M%S`_backend-api-error.log" --region "${AWS::Region}" --sse AES256 2>/dev/null
           fi
           
           # Enviar logs de nginx si existen
           if [ -f /var/log/nginx/access.log ]; then
-            aws s3 cp /var/log/nginx/access.log "s3://$$LOG_BUCKET/nginx-logs/$$INSTANCE_ID/$$(date +%Y%m%d_%H%M%S)_access.log" --region "$$REGION" --sse AES256 2>/dev/null
+            aws s3 cp /var/log/nginx/access.log "s3://${S3BucketLogs}/nginx-logs/$$INSTANCE_ID/`date +%Y%m%d_%H%M%S`_access.log" --region "${AWS::Region}" --sse AES256 2>/dev/null
           fi
           
           if [ -f /var/log/nginx/error.log ]; then
-            aws s3 cp /var/log/nginx/error.log "s3://$$LOG_BUCKET/nginx-logs/$$INSTANCE_ID/$$(date +%Y%m%d_%H%M%S)_error.log" --region "$$REGION" --sse AES256 2>/dev/null
+            aws s3 cp /var/log/nginx/error.log "s3://${S3BucketLogs}/nginx-logs/$$INSTANCE_ID/`date +%Y%m%d_%H%M%S`_error.log" --region "${AWS::Region}" --sse AES256 2>/dev/null
           fi
           EOF
           chmod +x /opt/webapp/send-logs.sh
@@ -349,7 +349,7 @@ Resources:
           log_message "Enviando logs finales a S3..."
           
           # Enviar logs a S3
-          send_log_to_s3 "/var/log/userdata.log"
+          aws s3 cp /var/log/userdata.log "s3://${S3BucketLogs}/userdata-logs/$$INSTANCE_ID/`date +%Y%m%d_%H%M%S`_userdata.log" --region "${AWS::Region}" --sse AES256 2>/dev/null || echo "No se pudo enviar logs a S3"
           
           # Verificar estado final
           log_message "Verificando estado final de servicios..."
@@ -366,7 +366,7 @@ Resources:
           fi
           
           # Enviar logs finales una vez más
-          send_log_to_s3 "/var/log/userdata.log"
+          aws s3 cp /var/log/userdata.log "s3://${S3BucketLogs}/userdata-logs/$$INSTANCE_ID/`date +%Y%m%d_%H%M%S`_userdata.log" --region "${AWS::Region}" --sse AES256 2>/dev/null || echo "No se pudo enviar logs a S3"
       BlockDeviceMappings:
         - DeviceName: /dev/xvda
           Ebs:
