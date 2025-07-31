@@ -110,6 +110,7 @@ Resources:
         S3BucketLogs: !GetAtt StorageStack.Outputs.S3BucketLogsName
         DDBTableName: !GetAtt StorageStack.Outputs.DynamoDBTableName
         LambdaQueryFunctionName: !GetAtt LambdaStack.Outputs.LambdaQueryFunctionName
+        LambdaETLFunctionName: !GetAtt LambdaStack.Outputs.LambdaETLFunctionName
       Tags:
         - Key: Name
           Value: !Sub ${AWS::StackName}-WebApp
@@ -173,6 +174,12 @@ Outputs:
     Value: !GetAtt LambdaStack.Outputs.LambdaQueryURL
     Export:
       Name: !Sub ${AWS::StackName}-Query-URL
+
+  LambdaETLURL:
+    Description: URL pública de la función Lambda ETL
+    Value: !GetAtt LambdaStack.Outputs.LambdaETLURL
+    Export:
+      Name: !Sub ${AWS::StackName}-ETL-URL
 
   LambdaETLFunctionName:
     Description: Nombre de la función Lambda ETL
