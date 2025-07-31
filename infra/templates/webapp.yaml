@@ -85,7 +85,7 @@ Resources:
   WebAppInstance:
     Type: AWS::EC2::Instance
     Properties:
-      ImageId: ami-08a6efd148b1f7504  # Amazon Linux 2023 AMI (us-east-1)
+      ImageId: ami-09ac0b140f63d3458  # Ubuntu 22.04 LTS AMI (us-east-1)
       InstanceType: !Ref InstanceType
       SubnetId: !Ref PublicSubnetId
       SecurityGroupIds:

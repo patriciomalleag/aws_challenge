@@ -1,5 +1,5 @@
 #!/bin/bash
-# Setup script para EC2 - AWS Challenge (Amazon Linux 2023)
+# Setup script para EC2 - AWS Challenge (Ubuntu Server 22.04 LTS)
 # Este script configura nginx y la aplicación web después del clonado del repositorio
 
 set -e  # Salir si cualquier comando falla
@@ -45,13 +45,10 @@ check_root_permissions() {
         return 1
     fi
     
-    # Probar dnf (Amazon Linux 2023 usa DNF en lugar de YUM)
-    if ! dnf --version >/dev/null 2>&1; then
-        log_message "⚠️  ADVERTENCIA: dnf no está disponible, intentando con yum"
-        if ! yum --version >/dev/null 2>&1; then
-            log_message "❌ ERROR: Ni dnf ni yum están disponibles"
-            return 1
-        fi
+    # Probar apt (Ubuntu usa APT como gestor de paquetes)
+    if ! apt --version >/dev/null 2>&1; then
+        log_message "❌ ERROR: apt no está disponible"
+        return 1
     fi
     
     log_message "✅ Permisos de root verificados correctamente"
@@ -82,14 +79,20 @@ log_message "✅ Repositorio encontrado correctamente"
 # Instalar dependencias si no están instaladas
 log_message "Verificando e instalando dependencias..."
 
+# Actualizar repositorios
+log_message "Actualizando repositorios de paquetes..."
+if apt update >> "$LOG_FILE" 2>&1; then
+    log_message "✅ Repositorios actualizados correctamente"
+else
+    log_message "❌ Error al actualizar repositorios"
+    exit 1
+fi
+
 # Instalar nginx si no está instalado
 if ! command_exists nginx; then
-    log_message "Instalando nginx en Amazon Linux 2023..."
-    # En Amazon Linux 2023, nginx está en los repositorios estándar
-    if dnf install -y nginx >> "$LOG_FILE" 2>&1; then
-        log_message "✅ nginx instalado correctamente con dnf"
-    elif yum install -y nginx >> "$LOG_FILE" 2>&1; then
-        log_message "✅ nginx instalado correctamente con yum"
+    log_message "Instalando nginx en Ubuntu..."
+    if apt install -y nginx >> "$LOG_FILE" 2>&1; then
+        log_message "✅ nginx instalado correctamente"
     else
         log_message "❌ Error al instalar nginx"
         exit 1
@@ -100,20 +103,11 @@ fi
 
 # Instalar Node.js si no está instalado
 if ! command_exists node; then
-    log_message "Instalando Node.js en Amazon Linux 2023..."
-    
-    # Método 1: Usando DNF para Node.js 18 (funciona mejor en AL2023)
-    if dnf install -y nodejs npm >> "$LOG_FILE" 2>&1; then
-        log_message "✅ Node.js instalado correctamente con dnf"
-    # Método 2: Fallback a YUM si DNF no funciona
-    elif yum install -y nodejs npm >> "$LOG_FILE" 2>&1; then
-        log_message "✅ Node.js instalado correctamente con yum"
-    # Método 3: Usando NodeSource como última opción
-    elif curl -fsSL https://rpm.nodesource.com/setup_18.x | bash - >> "$LOG_FILE" 2>&1 && \
-         dnf install -y nodejs >> "$LOG_FILE" 2>&1; then
-        log_message "✅ Node.js instalado correctamente desde NodeSource"
+    log_message "Instalando Node.js en Ubuntu..."
+    if apt install -y nodejs npm >> "$LOG_FILE" 2>&1; then
+        log_message "✅ Node.js instalado correctamente"
     else
-        log_message "❌ Error al instalar Node.js con todos los métodos"
+        log_message "❌ Error al instalar Node.js"
         exit 1
     fi
 else
