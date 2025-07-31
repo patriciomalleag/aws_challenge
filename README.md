@@ -29,6 +29,7 @@ Una aplicación web completa para la ingesta y consulta de datos, construida con
 ## 🚀 **Funcionalidades**
 
 ### **Ingestor de Datos:**
+
 - ✅ Subida de archivos CSV mediante drag & drop
 - ✅ Detección automática de esquemas de datos
 - ✅ Edición manual de esquemas antes de la ingesta
@@ -37,12 +38,14 @@ Una aplicación web completa para la ingesta y consulta de datos, construida con
 - ✅ Prevención de sobrescritura accidental
 
 ### **Procesamiento ETL:**
+
 - ✅ Conversión automática de CSV a Parquet
 - ✅ Almacenamiento optimizado en bucket curated
 - ✅ Actualización automática del catálogo de metadatos
 - ✅ Procesamiento serverless con Lambda
 
 ### **Infraestructura:**
+
 - ✅ Despliegue automatizado con CloudFormation
 - ✅ Auto Scaling basado en CPU
 - ✅ Load Balancer para alta disponibilidad
@@ -52,11 +55,13 @@ Una aplicación web completa para la ingesta y consulta de datos, construida con
 ## 📋 **Requisitos**
 
 ### **Para AWS Academy Learner Lab:**
+
 - Cuenta de AWS Academy activa
 - LabRole con permisos para S3, DynamoDB, EC2, Lambda, CloudWatch
 - Acceso a GitHub para clonar el repositorio
 
 ### **Para Desarrollo Local:**
+
 - Node.js 16+
 - AWS CLI configurado
 - Git
@@ -64,30 +69,34 @@ Una aplicación web completa para la ingesta y consulta de datos, construida con
 ## 🛠️ **Instalación y Despliegue**
 
 ### **1. Clonar el Repositorio:**
+
 ```bash
 git clone https://github.com/patriciomallea/aws_challenge.git
 cd aws_challenge
 ```
 
 ### **2. Configurar AWS (Learner Lab):**
+
 ```bash
 # Obtener credenciales del Learner Lab
 aws configure
 ```
 
 ### **3. Desplegar Infraestructura:**
+
 ```bash
 cd infra
 ./scripts/deploy-modular.sh
 ```
 
 ### **4. Acceder a la Aplicación:**
+
 - **URL Principal**: `http://[ALB-DNS-NAME]`
 - **API Health Check**: `http://[ALB-DNS-NAME]/health`
 
 ## 📁 **Estructura del Proyecto**
 
-```
+```bash
 aws_challenge/
 ├── frontend/                 # Aplicación React
 │   ├── src/
@@ -118,27 +127,32 @@ aws_challenge/
 ## 🔄 **Flujo de Datos**
 
 ### **1. Ingesta de Datos:**
-```
+
+```bash
 Usuario → Frontend → Backend API → S3 Raw → Lambda ETL → S3 Curated + DynamoDB
 ```
 
 ### **2. Procesamiento ETL:**
-```
+
+```bash
 S3 Event → Lambda ETL → CSV → Parquet → S3 Curated → Actualizar DynamoDB
 ```
 
 ### **3. Consultas (Próximamente):**
-```
+
+```bash
 Usuario → Frontend → Lambda Query → S3 Curated → Resultados
 ```
 
 ## 🎯 **Uso de la Aplicación**
 
 ### **Página Principal:**
+
 - Dos botones principales: "Ingestor de Datos" y "Consultas"
 - Información sobre las funcionalidades del sistema
 
-### **Ingestor de Datos:**
+### **Vista Ingestor de Datos:**
+
 1. **Ver Archivos Existentes**: Tabla con archivos cargados y su estado
 2. **Subir Nuevo Archivo**: 
    - Arrastrar archivo CSV o hacer clic para seleccionar
@@ -147,6 +161,7 @@ Usuario → Frontend → Lambda Query → S3 Curated → Resultados
    - Hacer clic en "Ingestar Datos"
 
 ### **Proceso Automático:**
+
 1. El archivo se sube al bucket S3 Raw
 2. Se guarda el esquema en DynamoDB
 3. Lambda ETL se activa automáticamente
@@ -156,6 +171,7 @@ Usuario → Frontend → Lambda Query → S3 Curated → Resultados
 ## 🔧 **Configuración Avanzada**
 
 ### **Variables de Entorno:**
+
 ```bash
 # Backend API
 PORT=8080
@@ -166,6 +182,7 @@ DDB_TABLE_NAME=datasets-catalog
 ```
 
 ### **Permisos IAM Requeridos:**
+
 - S3: GetObject, PutObject, ListBucket
 - DynamoDB: GetItem, PutItem, UpdateItem, Query, Scan
 - CloudWatch: CreateLogGroup, CreateLogStream, PutLogEvents
@@ -187,6 +204,7 @@ DDB_TABLE_NAME=datasets-catalog
    - Revisar logs de Nginx y PM2
 
 ### **Comandos de Diagnóstico:**
+
 ```bash
 # Verificar estado de la infraestructura
 aws cloudformation describe-stacks --stack-name data-pipeline
@@ -201,25 +219,18 @@ aws ec2 describe-instances --filters "Name=tag:Project,Values=data-pipeline"
 ## 📈 **Monitoreo**
 
 ### **CloudWatch Logs:**
+
 - `/aws/ec2/webapp` - Logs de la aplicación web
 - `/aws/ec2/nginx/access` - Logs de acceso de Nginx
 - `/aws/ec2/nginx/error` - Logs de error de Nginx
 - `/aws/lambda/data-pipeline-etl` - Logs de Lambda ETL
 
 ### **Métricas:**
+
 - CPU y memoria de instancias EC2
 - Latencia del Application Load Balancer
 - Errores de Lambda ETL
 - Uso de S3 y DynamoDB
-
-## 🔮 **Próximas Funcionalidades**
-
-- [ ] Interfaz de consultas SQL
-- [ ] Visualización de datos con gráficos
-- [ ] Exportación de resultados
-- [ ] Programación de ingestas automáticas
-- [ ] Notificaciones por email/SNS
-- [ ] Dashboard de métricas
 
 ## 📄 **Licencia**
 
@@ -228,6 +239,7 @@ Este proyecto es parte del AWS Academy Challenge y está diseñado para fines ed
 ## 👥 **Contribución**
 
 Para contribuir al proyecto:
+
 1. Fork el repositorio
 2. Crear una rama para tu feature
 3. Commit tus cambios
@@ -236,4 +248,4 @@ Para contribuir al proyecto:
 
 ---
 
-**Desarrollado para AWS Academy Learner Lab** 🚀 
+**Desarrollado para MCDS de IMMUNE usando AWS Academy Learner Lab** 🚀 
