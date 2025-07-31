@@ -40,6 +40,10 @@ Parameters:
     Type: String
     Description: Nombre de la función Lambda Query
     
+  LambdaETLFunctionName:
+    Type: String
+    Description: Nombre de la función Lambda ETL
+    
   KeyName:
     Type: String
     Description: Nombre del key pair para acceso SSH a la instancia
@@ -102,6 +106,15 @@ Resources:
           REGION="${AWS::Region}"
           LOG_FILE="/var/log/userdata.log"
           
+          # Variables de entorno para la aplicación (desde CloudFormation)
+          export AWS_REGION="${AWS::Region}"
+          export S3_BUCKET_RAW="${S3BucketRaw}"
+          export S3_BUCKET_CURATED="${S3BucketCurated}"
+          export S3_BUCKET_LOGS="${S3BucketLogs}"
+          export DDB_TABLE_NAME="${DDBTableName}"
+          export LAMBDA_QUERY_FUNCTION_NAME="${LambdaQueryFunctionName}"
+          export LAMBDA_ETL_FUNCTION_NAME="${LambdaETLFunctionName}"
+          
           # Función para loggear con timestamp
           log_message() {
             local message="$1"
@@ -113,6 +126,14 @@ Resources:
           log_message "=== USERDATA START ==="
           log_message "Instance ID: $INSTANCE_ID"
           log_message "Region: $REGION"
+          log_message "Variables de entorno configuradas:"
+          log_message "  AWS_REGION: $AWS_REGION"
+          log_message "  S3_BUCKET_RAW: $S3_BUCKET_RAW"
+          log_message "  S3_BUCKET_CURATED: $S3_BUCKET_CURATED"
+          log_message "  S3_BUCKET_LOGS: $S3_BUCKET_LOGS"
+          log_message "  DDB_TABLE_NAME: $DDB_TABLE_NAME"
+          log_message "  LAMBDA_QUERY_FUNCTION_NAME: $LAMBDA_QUERY_FUNCTION_NAME"
+          log_message "  LAMBDA_ETL_FUNCTION_NAME: $LAMBDA_ETL_FUNCTION_NAME"
           
           # Actualizar sistema e instalar git
           log_message "Actualizando sistema e instalando git..."

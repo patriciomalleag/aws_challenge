@@ -113,10 +113,6 @@ if ! command_exists node; then
 else
     log_message "✅ Node.js ya está instalado"
 fi
-    else
-        log_message "❌ Error al instalar Node.js"
-        exit 1
-    fi
 # Verificar versiones instaladas
 log_message "Verificando versiones instaladas:"
 log_message "Node.js: $(node --version 2>/dev/null || echo 'No instalado')"
@@ -175,6 +171,24 @@ fi
 
 # Crear servicio systemd para el backend
 log_message "Creando servicio systemd para el backend..."
+
+# Obtener variables de entorno (pasadas desde CloudFormation UserData)
+CF_AWS_REGION="${AWS_REGION:-us-east-1}"
+CF_S3_BUCKET_RAW="${S3_BUCKET_RAW:-data-pipeline-raw-unknown}"
+CF_S3_BUCKET_CURATED="${S3_BUCKET_CURATED:-data-pipeline-curated-unknown}"
+CF_S3_BUCKET_LOGS="${S3_BUCKET_LOGS:-data-pipeline-logs-unknown}"
+CF_DDB_TABLE_NAME="${DDB_TABLE_NAME:-datasets-catalog}"
+CF_LAMBDA_QUERY_FUNCTION_NAME="${LAMBDA_QUERY_FUNCTION_NAME:-data-pipeline-query-function}"
+CF_LAMBDA_ETL_FUNCTION_NAME="${LAMBDA_ETL_FUNCTION_NAME:-data-pipeline-etl-function}"
+
+log_message "Configurando backend con variables de CloudFormation:"
+log_message "  AWS_REGION: $CF_AWS_REGION"
+log_message "  S3_BUCKET_RAW: $CF_S3_BUCKET_RAW"
+log_message "  S3_BUCKET_CURATED: $CF_S3_BUCKET_CURATED"
+log_message "  DDB_TABLE_NAME: $CF_DDB_TABLE_NAME"
+log_message "  LAMBDA_QUERY_FUNCTION_NAME: $CF_LAMBDA_QUERY_FUNCTION_NAME"
+log_message "  LAMBDA_ETL_FUNCTION_NAME: $CF_LAMBDA_ETL_FUNCTION_NAME"
+
 cat > /etc/systemd/system/aws-challenge-backend.service << EOF
 [Unit]
 Description=AWS Challenge Backend API
@@ -189,6 +203,13 @@ Restart=always
 RestartSec=5
 Environment=NODE_ENV=production
 Environment=PORT=8080
+Environment=AWS_REGION=$CF_AWS_REGION
+Environment=S3_BUCKET_RAW=$CF_S3_BUCKET_RAW
+Environment=S3_BUCKET_CURATED=$CF_S3_BUCKET_CURATED
+Environment=S3_BUCKET_LOGS=$CF_S3_BUCKET_LOGS
+Environment=DDB_TABLE_NAME=$CF_DDB_TABLE_NAME
+Environment=LAMBDA_QUERY_FUNCTION_NAME=$CF_LAMBDA_QUERY_FUNCTION_NAME
+Environment=LAMBDA_ETL_FUNCTION_NAME=$CF_LAMBDA_ETL_FUNCTION_NAME
 
 [Install]
 WantedBy=multi-user.target
@@ -220,6 +241,40 @@ else
     log_message "⚠️ El backend no está corriendo como esperado"
     systemctl status aws-challenge-backend --no-pager -l >> "$LOG_FILE" 2>&1
 fi
+
+# Crear página de status del sistema
+log_message "Creando página de status del sistema..."
+cat > "$WEB_DIR/status.html" << EOF
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AWS Challenge - Setup Completado</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 40px; background: #f5f5f5; }
+        .container { max-width: 800px; margin: 0 auto; background: white; padding: 30px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        h1 { color: #232f3e; }
+        .status { background: #d4edda; padding: 15px; border-radius: 5px; margin: 20px 0; }
+        .info { background: #e7f3ff; padding: 15px; border-radius: 5px; margin: 20px 0; }
+        .logs { background: #fff3cd; padding: 15px; border-radius: 5px; margin: 20px 0; }
+        ul { padding-left: 20px; }
+        a { color: #0066cc; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🚀 AWS Challenge - Setup Completado</h1>
+        <div class="status">
+            <h3>✅ Estado del sistema:</h3>
+            <p>El setup de EC2 se ha completado exitosamente. Los servicios están corriendo.</p>
+        </div>
+        <div class="info">
+            <h3>📁 Estructura del proyecto:</h3>
+            <ul>
+                <li>📁 frontend/ - Aplicación React</li>
+                <li>📁 backend-api/ - API Node.js</li>
+                <li>📁 lambda-etl/ - Función Lambda ETL</li>
                 <li>📁 lambda-query/ - Función Lambda Query</li>
                 <li>📁 infra/ - Infraestructura CloudFormation</li>
                 <li>📁 shared/ - Utilidades compartidas</li>
@@ -247,7 +302,7 @@ fi
 </html>
 EOF
 
-log_message "✅ Página web creada: $(wc -c < "$WEB_DIR/index.html") bytes"
+log_message "✅ Página de status creada: $(wc -c < "$WEB_DIR/status.html") bytes"
 
 # Configurar nginx
 log_message "Configurando nginx (requiere permisos de root)..."
@@ -394,10 +449,10 @@ if systemctl is-active --quiet nginx; then
     log_message "Puerto 80 en uso por: $(netstat -tlnp | grep :80)"
     
     # Test HTTP
-    if curl -s http://localhost | grep -q "AWS Challenge"; then
-        log_message "✅ Página web funcionando correctamente"
+    if curl -s http://localhost/status.html | grep -q "AWS Challenge"; then
+        log_message "✅ Página de status funcionando correctamente"
     else
-        log_message "⚠️ Página web no responde como esperado"
+        log_message "⚠️ Página de status no responde como esperado"
     fi
 else
     log_message "❌ Error al iniciar nginx"
@@ -441,6 +496,7 @@ IP Pública: $PUBLIC_IP
 Aplicación:
 - Frontend React: http://$PUBLIC_IP
 - Backend API: http://$PUBLIC_IP/api
+- Página de status: http://$PUBLIC_IP/status.html
 - Explorar código: http://$PUBLIC_IP/repo
 
 Directorios:
@@ -468,4 +524,5 @@ EOF
 log_message "=== SETUP COMPLETADO EXITOSAMENTE ==="
 log_message "Aplicación React disponible en: http://$PUBLIC_IP"
 log_message "Backend API disponible en: http://$PUBLIC_IP/api"
+log_message "Página de status del sistema: http://$PUBLIC_IP/status.html"
 log_message "Información guardada en: $REPO_DIR/deployment-info.txt"

@@ -110,6 +110,7 @@ Resources:
         S3BucketLogs: !GetAtt StorageStack.Outputs.S3BucketLogsName
         DDBTableName: !GetAtt StorageStack.Outputs.DynamoDBTableName
         LambdaQueryFunctionName: !GetAtt LambdaStack.Outputs.LambdaQueryFunctionName
+        LambdaETLFunctionName: !GetAtt LambdaStack.Outputs.LambdaETLFunctionName
       Tags:
         - Key: Name
           Value: !Sub ${AWS::StackName}-WebApp
