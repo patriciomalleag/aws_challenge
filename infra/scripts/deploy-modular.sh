@@ -256,6 +256,16 @@ show_outputs() {
         echo "   Lambda Query URL: $QUERY_URL"
     fi
     
+    ETL_URL=$(aws cloudformation describe-stacks \
+        --stack-name $STACK_NAME \
+        --region $REGION \
+        --query 'Stacks[0].Outputs[?OutputKey==`LambdaETLURL`].OutputValue' \
+        --output text)
+    
+    if [[ "$ETL_URL" != "None" ]]; then
+        echo "   Lambda ETL URL: $ETL_URL"
+    fi
+    
     WEBAPP_URL=$(aws cloudformation describe-stacks \
         --stack-name $STACK_NAME \
         --region $REGION \
@@ -351,43 +361,22 @@ verify_resources() {
     fi
 }
 
-# Función para configurar notificación S3 después del despliegue
-configure_s3_notification() {
-    log_info "Configurando notificación S3 para Lambda ETL..."
+# Función para obtener URL de Lambda ETL después del despliegue
+get_lambda_etl_url() {
+    log_info "Obteniendo URL de Lambda ETL..."
     
-    # Obtener Account ID
-    ACCOUNT_ID=$(get_account_id)
-    S3_BUCKET_RAW="data-pipeline-raw-$ACCOUNT_ID"
-    LAMBDA_FUNCTION_NAME="data-pipeline-stack-LambdaStack-ETL-Processor"
+    ETL_URL=$(aws cloudformation describe-stacks \
+        --stack-name $STACK_NAME \
+        --region $REGION \
+        --query 'Stacks[0].Outputs[?OutputKey==`LambdaETLURL`].OutputValue' \
+        --output text 2>/dev/null || echo "None")
     
-    # Configurar notificación S3
-    aws s3api put-bucket-notification-configuration \
-        --bucket "$S3_BUCKET_RAW" \
-        --notification-configuration '{
-            "LambdaConfigurations": [
-                {
-                    "Id": "ETL-Processor-Trigger",
-                    "LambdaFunctionArn": "arn:aws:lambda:'$REGION':'$ACCOUNT_ID':function:'$LAMBDA_FUNCTION_NAME'",
-                    "Events": ["s3:ObjectCreated:*"],
-                    "Filter": {
-                        "Key": {
-                            "FilterRules": [
-                                {
-                                    "Name": "suffix",
-                                    "Value": ".csv"
-                                }
-                            ]
-                        }
-                    }
-                }
-            ]
-        }'
-    
-    if [ $? -eq 0 ]; then
-        log_success "Notificación S3 configurada exitosamente"
+    if [[ "$ETL_URL" != "None" ]]; then
+        log_success "Lambda ETL URL obtenida: $ETL_URL"
+        echo "   Lambda ETL URL: $ETL_URL"
     else
-        log_warning "No se pudo configurar la notificación S3 automáticamente"
-        log_info "Puedes configurarla manualmente después del despliegue"
+        log_warning "No se pudo obtener la URL de Lambda ETL"
+        log_info "Verifica que el template incluya el output LambdaETLURL"
     fi
 }
 
@@ -404,7 +393,7 @@ main() {
     deploy_stack
     show_outputs
     verify_resources
-    configure_s3_notification
+    get_lambda_etl_url
     
     log_success "🎉 Despliegue completado exitosamente!"
 }

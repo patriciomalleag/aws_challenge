@@ -39,7 +39,6 @@ Resources:
         BlockPublicPolicy: true
         IgnorePublicAcls: true
         RestrictPublicBuckets: true
-      # NotificationConfiguration se configurará después de crear la función Lambda
       LifecycleConfiguration:
         Rules:
           - Id: DeleteOldVersions

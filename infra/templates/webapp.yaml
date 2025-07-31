@@ -17,7 +17,7 @@ Parameters:
   InstanceType:
     Type: String
     Description: Tipo de instancia EC2
-    Default: t3.micro
+    Default: t3.medium
     AllowedValues: [t3.micro, t3.small, t3.medium, t2.micro, t2.small]
     
   S3BucketRaw:
@@ -116,8 +116,8 @@ Resources:
           
           # Actualizar sistema e instalar git
           log_message "Actualizando sistema e instalando git..."
-          yum update -y >> "$LOG_FILE" 2>&1
-          yum install -y git >> "$LOG_FILE" 2>&1
+          apt update -y >> "$LOG_FILE" 2>&1
+          apt install -y git >> "$LOG_FILE" 2>&1
           
           # Crear directorio y clonar repositorio
           log_message "Clonando repositorio..."

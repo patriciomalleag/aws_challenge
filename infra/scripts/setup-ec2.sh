@@ -117,87 +117,109 @@ fi
         log_message "❌ Error al instalar Node.js"
         exit 1
     fi
+# Verificar versiones instaladas
+log_message "Verificando versiones instaladas:"
+log_message "Node.js: $(node --version 2>/dev/null || echo 'No instalado')"
+log_message "NPM: $(npm --version 2>/dev/null || echo 'No instalado')"
+
+# Construir el frontend React
+log_message "Construyendo frontend React..."
+cd "$REPO_DIR/frontend"
+
+if [ ! -f "package.json" ]; then
+    log_message "❌ ERROR: No se encuentra package.json en frontend"
+    exit 1
+fi
+
+log_message "Instalando dependencias del frontend..."
+if npm install >> "$LOG_FILE" 2>&1; then
+    log_message "✅ Dependencias del frontend instaladas"
 else
-    log_message "✅ Node.js ya está instalado ($(node --version))"
-fi
-
-# Crear página web personalizada
-log_message "Creando página web personalizada..."
-
-# Verificar que podemos escribir en /var/www/html
-if ! mkdir -p "$WEB_DIR" 2>>"$LOG_FILE"; then
-    log_message "❌ ERROR: No se puede crear directorio $WEB_DIR (permisos insuficientes)"
+    log_message "❌ Error al instalar dependencias del frontend"
     exit 1
 fi
 
-if [ ! -w "$WEB_DIR" ]; then
-    log_message "❌ ERROR: No se puede escribir en $WEB_DIR (permisos insuficientes)"
+log_message "Construyendo aplicación React para producción..."
+if npm run build >> "$LOG_FILE" 2>&1; then
+    log_message "✅ Frontend construido correctamente"
+else
+    log_message "❌ Error al construir frontend"
     exit 1
 fi
 
-log_message "✅ Directorio web verificado: $WEB_DIR"
+# Copiar archivos construidos al directorio web
+log_message "Copiando archivos del frontend a nginx..."
+if cp -r build/* "$WEB_DIR/" >> "$LOG_FILE" 2>&1; then
+    log_message "✅ Archivos del frontend copiados a $WEB_DIR"
+else
+    log_message "❌ Error al copiar archivos del frontend"
+    exit 1
+fi
 
-# Obtener información de la instancia
-INSTANCE_ID=$(curl -s http://169.254.169.254/latest/meta-data/instance-id 2>/dev/null || echo "unknown")
-REGION=$(curl -s http://169.254.169.254/latest/meta-data/placement/region 2>/dev/null || echo "unknown")
-PUBLIC_IP=$(curl -s http://169.254.169.254/latest/meta-data/public-ipv4 2>/dev/null || echo "unknown")
+# Configurar el backend API
+log_message "Configurando backend API..."
+cd "$REPO_DIR/backend-api"
 
-cat > "$WEB_DIR/index.html" << EOF
-<!DOCTYPE html>
-<html lang="es">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AWS Challenge - Repositorio Clonado</title>
-    <style>
-        body { 
-            font-family: Arial, sans-serif; 
-            text-align: center; 
-            padding: 50px;
-            background-color: #f0f0f0;
-        }
-        .container {
-            max-width: 800px;
-            margin: 0 auto;
-            background: white;
-            padding: 30px;
-            border-radius: 10px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-        }
-        h1 { color: #333; }
-        .status { 
-            background: #d4edda; 
-            border: 1px solid #c3e6cb; 
-            color: #155724; 
-            padding: 10px; 
-            border-radius: 5px; 
-            margin: 20px 0;
-        }
-        .info { background: #e7f3ff; border-color: #b3d9ff; color: #004085; }
-        ul { text-align: left; display: inline-block; }
-        .logs { 
-            background: #f8f9fa; 
-            border: 1px solid #dee2e6; 
-            padding: 10px; 
-            border-radius: 5px; 
-            margin: 10px 0;
-            font-family: monospace;
-            font-size: 0.9em;
-        }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <h1>🚀 AWS Challenge</h1>
-        <div class="status">
-            ✅ Repositorio clonado y configurado exitosamente
-        </div>
-        <div class="info status">
-            <h3>📂 Estructura del proyecto disponible:</h3>
-            <ul>
-                <li>📁 frontend/ - Aplicación React</li>
-                <li>📁 backend-api/ - API Backend</li>
-                <li>📁 lambda-etl/ - Función Lambda ETL</li>
+if [ ! -f "package.json" ]; then
+    log_message "❌ ERROR: No se encuentra package.json en backend-api"
+    exit 1
+fi
+
+log_message "Instalando dependencias del backend..."
+if npm install >> "$LOG_FILE" 2>&1; then
+    log_message "✅ Dependencias del backend instaladas"
+else
+    log_message "❌ Error al instalar dependencias del backend"
+    exit 1
+fi
+
+# Crear servicio systemd para el backend
+log_message "Creando servicio systemd para el backend..."
+cat > /etc/systemd/system/aws-challenge-backend.service << EOF
+[Unit]
+Description=AWS Challenge Backend API
+After=network.target
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=$REPO_DIR/backend-api
+ExecStart=/usr/bin/node server.js
+Restart=always
+RestartSec=5
+Environment=NODE_ENV=production
+Environment=PORT=8080
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+# Habilitar e iniciar el servicio del backend
+log_message "Habilitando servicio del backend..."
+if systemctl enable aws-challenge-backend >> "$LOG_FILE" 2>&1; then
+    log_message "✅ Servicio del backend habilitado"
+else
+    log_message "❌ Error al habilitar servicio del backend"
+    exit 1
+fi
+
+log_message "Iniciando servicio del backend..."
+if systemctl start aws-challenge-backend >> "$LOG_FILE" 2>&1; then
+    log_message "✅ Servicio del backend iniciado"
+else
+    log_message "❌ Error al iniciar servicio del backend"
+    systemctl status aws-challenge-backend --no-pager -l >> "$LOG_FILE" 2>&1
+fi
+
+# Verificar que el backend está corriendo
+sleep 5
+if systemctl is-active --quiet aws-challenge-backend; then
+    log_message "✅ Backend API corriendo correctamente"
+    log_message "Puerto 8080 en uso por: $(netstat -tlnp | grep :8080 || echo 'No detectado')"
+else
+    log_message "⚠️ El backend no está corriendo como esperado"
+    systemctl status aws-challenge-backend --no-pager -l >> "$LOG_FILE" 2>&1
+fi
                 <li>📁 lambda-query/ - Función Lambda Query</li>
                 <li>📁 infra/ - Infraestructura CloudFormation</li>
                 <li>📁 shared/ - Utilidades compartidas</li>
@@ -249,9 +271,9 @@ rm -f /etc/nginx/conf.d/default.conf
 rm -f /etc/nginx/sites-enabled/default
 rm -f /etc/nginx/sites-available/default
 
-# Crear configuración limpia
+# Crear configuración de nginx para React SPA
 cat > /etc/nginx/nginx.conf << 'EOF'
-user nginx;
+user www-data;
 worker_processes auto;
 error_log /var/log/nginx/error.log;
 pid /run/nginx.pid;
@@ -282,21 +304,16 @@ http {
         listen [::]:80 default_server;
         server_name _;
         root /var/www/html;
-        index index.html index.htm;
+        index index.html;
         
+        # Configuración para React SPA
         location / {
-            try_files $uri $uri/ =404;
+            try_files $uri $uri/ /index.html;
         }
         
-        location /repo {
-            alias /opt/webapp;
-            autoindex on;
-            autoindex_exact_size off;
-            autoindex_localtime on;
-        }
-        
+        # Proxy para API backend
         location /api {
-            proxy_pass http://localhost:3001;
+            proxy_pass http://localhost:8080;
             proxy_http_version 1.1;
             proxy_set_header Upgrade $http_upgrade;
             proxy_set_header Connection 'upgrade';
@@ -307,7 +324,22 @@ http {
             proxy_cache_bypass $http_upgrade;
         }
         
-        error_page 404 /404.html;
+        # Archivos estáticos con cache
+        location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg)$ {
+            expires 1y;
+            add_header Cache-Control "public, immutable";
+            try_files $uri =404;
+        }
+        
+        # Ubicación para explorar repositorio (debug)
+        location /repo {
+            alias /opt/webapp;
+            autoindex on;
+            autoindex_exact_size off;
+            autoindex_localtime on;
+        }
+        
+        error_page 404 /index.html;
         error_page 500 502 503 504 /50x.html;
         location = /50x.html {
             root /usr/share/nginx/html;
@@ -373,6 +405,29 @@ else
     exit 1
 fi
 
+# Obtener información de la instancia para el archivo final
+INSTANCE_ID=$(curl -s http://169.254.169.254/latest/meta-data/instance-id 2>/dev/null || echo "unknown")
+REGION=$(curl -s http://169.254.169.254/latest/meta-data/placement/region 2>/dev/null || echo "unknown")
+PUBLIC_IP=$(curl -s http://169.254.169.254/latest/meta-data/public-ipv4 2>/dev/null || echo "unknown")
+
+# Test final de la aplicación
+log_message "Realizando test final de la aplicación..."
+sleep 5
+
+# Test del frontend
+if curl -s http://localhost | grep -q "html"; then
+    log_message "✅ Frontend React funcionando correctamente"
+else
+    log_message "⚠️ Frontend no responde como esperado"
+fi
+
+# Test del backend API
+if curl -s http://localhost/api >/dev/null 2>&1; then
+    log_message "✅ Backend API responde correctamente"
+else
+    log_message "⚠️ Backend API no responde (esto puede ser normal si no hay rutas definidas)"
+fi
+
 # Crear archivo de información
 cat > "$REPO_DIR/deployment-info.txt" << EOF
 AWS Challenge - Información de despliegue
@@ -383,20 +438,34 @@ Instance ID: $INSTANCE_ID
 Región: $REGION
 IP Pública: $PUBLIC_IP
 
-Repositorio: $REPO_DIR
-Web root: $WEB_DIR
-Página web: http://$PUBLIC_IP
-Explorar código: http://$PUBLIC_IP/repo
+Aplicación:
+- Frontend React: http://$PUBLIC_IP
+- Backend API: http://$PUBLIC_IP/api
+- Explorar código: http://$PUBLIC_IP/repo
+
+Directorios:
+- Repositorio: $REPO_DIR
+- Web root: $WEB_DIR
+- Frontend build: $REPO_DIR/frontend/build
+
+Servicios:
+- nginx: $(systemctl is-active nginx 2>/dev/null || echo "desconocido")
+- aws-challenge-backend: $(systemctl is-active aws-challenge-backend 2>/dev/null || echo "desconocido")
 
 Logs:
 - Setup: $LOG_FILE
 - Nginx access: /var/log/nginx/access.log
 - Nginx error: /var/log/nginx/error.log
+- Backend: journalctl -u aws-challenge-backend
 
 Para acceso SSH:
-ssh -i your-key.pem ec2-user@$PUBLIC_IP
+ssh -i your-key.pem ubuntu@$PUBLIC_IP
+
+Para ver logs del backend:
+sudo journalctl -u aws-challenge-backend -f
 EOF
 
 log_message "=== SETUP COMPLETADO EXITOSAMENTE ==="
-log_message "Página web disponible en: http://$PUBLIC_IP"
+log_message "Aplicación React disponible en: http://$PUBLIC_IP"
+log_message "Backend API disponible en: http://$PUBLIC_IP/api"
 log_message "Información guardada en: $REPO_DIR/deployment-info.txt"

@@ -1,111 +1,129 @@
 /**
  * Punto de entrada principal para la función Lambda ETL
- * Procesa archivos CSV cargados en S3, los valida y convierte a Parquet
+ * Procesa archivos CSV via peticiones HTTP, los valida y convierte a Parquet
  * @module lambda-etl/index
  */
 
 const { logger, logError, logPerformance } = require('../../shared/utils/logger');
 const { createError } = require('../../shared/constants/errorCodes');
-const S3EventHandler = require('./handlers/s3EventHandler');
+const HttpHandler = require('./handlers/httpHandler');
 
 /**
- * Manejador principal de la función Lambda
- * @param {Object} event - Evento S3 que dispara la función
+ * Manejador principal de la función Lambda con URL pública
+ * @param {Object} event - Evento HTTP de API Gateway
  * @param {Object} context - Contexto de ejecución Lambda
- * @returns {Object} - Respuesta de la función
+ * @returns {Object} - Respuesta HTTP
  */
 exports.handler = async (event, context) => {
   const startTime = Date.now();
   const requestId = context.awsRequestId;
   
-  logger.info('Iniciando procesamiento ETL', {
+  logger.info('Request HTTP recibido para ETL', {
     requestId,
-    eventSource: event.Records?.[0]?.eventSource,
-    eventName: event.Records?.[0]?.eventName,
-    recordCount: event.Records?.length || 0
+    method: event.httpMethod,
+    path: event.path,
+    queryStringParameters: event.queryStringParameters,
+    headers: event.headers
   });
 
   try {
-    // Validar que el evento contenga registros S3
-    if (!event.Records || !Array.isArray(event.Records)) {
-      throw createError('VALIDATION_ERROR', 'Evento inválido: no contiene registros S3');
-    }
-
-    // Procesar cada registro S3
-    const results = [];
-    for (const record of event.Records) {
-      try {
-        const result = await S3EventHandler.processS3Event(record, context);
-        results.push({
-          success: true,
-          bucket: record.s3.bucket.name,
-          key: record.s3.object.key,
-          datasetId: result.datasetId
-        });
-      } catch (error) {
-        logger.error('Error procesando registro S3', {
-          requestId,
-          bucket: record.s3?.bucket?.name,
-          key: record.s3?.object?.key,
-          error: error.message
-        });
-
-        results.push({
-          success: false,
-          bucket: record.s3?.bucket?.name,
-          key: record.s3?.object?.key,
-          error: error.message
-        });
-      }
-    }
-
-    // Calcular métricas de rendimiento
-    const processingTime = Date.now() - startTime;
-    const successCount = results.filter(r => r.success).length;
-    const failureCount = results.length - successCount;
-
-    logPerformance('ETL_PROCESSING', processingTime, {
-      requestId,
-      totalRecords: results.length,
-      successCount,
-      failureCount,
-      averageTimePerRecord: processingTime / results.length
-    });
-
-    logger.info('Procesamiento ETL completado', {
-      requestId,
-      processingTime,
-      successCount,
-      failureCount,
-      results
-    });
-
-    return {
-      statusCode: 200,
-      body: JSON.stringify({
-        message: 'Procesamiento ETL completado',
-        requestId,
-        processingTime,
-        results: {
-          total: results.length,
-          successful: successCount,
-          failed: failureCount,
-          details: results
-        }
-      })
+    // Configurar headers CORS
+    const corsHeaders = {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Headers': 'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token',
+      'Access-Control-Allow-Methods': 'GET,POST,OPTIONS',
+      'Access-Control-Allow-Credentials': 'false'
     };
+
+    // Manejar preflight OPTIONS
+    if (event.httpMethod === 'OPTIONS') {
+      return {
+        statusCode: 200,
+        headers: corsHeaders,
+        body: ''
+      };
+    }
+
+    // Procesar request según el método y path
+    let response;
+    
+    switch (event.httpMethod) {
+      case 'POST':
+        if (event.path === '/process') {
+          response = await HttpHandler.handleProcessRequest(event, context);
+        } else {
+          throw createError('NOT_FOUND', `Endpoint no encontrado: ${event.path}`);
+        }
+        break;
+        
+      case 'GET':
+        if (event.path === '/health') {
+          response = await HttpHandler.handleHealthCheck(event, context);
+        } else {
+          throw createError('NOT_FOUND', `Endpoint no encontrado: ${event.path}`);
+        }
+        break;
+        
+      default:
+        throw createError('METHOD_NOT_ALLOWED', `Método HTTP no soportado: ${event.httpMethod}`);
+    }
+
+    // Agregar headers CORS a la respuesta
+    response.headers = {
+      ...corsHeaders,
+      ...response.headers
+    };
+
+    // Calcular tiempo de procesamiento
+    const processingTime = Date.now() - startTime;
+    
+    logPerformance('ETL_HTTP_REQUEST', processingTime, {
+      requestId,
+      method: event.httpMethod,
+      path: event.path,
+      statusCode: response.statusCode
+    });
+
+    logger.info('Request HTTP ETL procesado exitosamente', {
+      requestId,
+      method: event.httpMethod,
+      path: event.path,
+      statusCode: response.statusCode,
+      processingTime
+    });
+
+    return response;
 
   } catch (error) {
     const processingTime = Date.now() - startTime;
     
     logError(error, {
       requestId,
-      processingTime,
-      event: JSON.stringify(event)
+      method: event.httpMethod,
+      path: event.path,
+      processingTime
     }, 'lambda-etl');
 
-    // Re-lanzar el error para que Lambda lo maneje
-    throw error;
+    // Formatear respuesta de error
+    const errorResponse = {
+      statusCode: error.statusCode || 500,
+      headers: {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Headers': 'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token',
+        'Access-Control-Allow-Methods': 'GET,POST,OPTIONS',
+        'Access-Control-Allow-Credentials': 'false',
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        success: false,
+        error: error.message || 'Error interno del servidor',
+        code: error.code || 'INTERNAL_ERROR',
+        requestId,
+        timestamp: new Date().toISOString()
+      })
+    };
+
+    return errorResponse;
   }
 };
 
@@ -135,7 +153,14 @@ exports.initialize = async () => {
       `Variables de entorno faltantes: ${missingVars.join(', ')}`);
   }
 
-  logger.info('Función Lambda ETL inicializada correctamente');
+  // Inicializar servicios
+  try {
+    await HttpHandler.initialize();
+    logger.info('Función Lambda ETL inicializada correctamente');
+  } catch (error) {
+    logger.error('Error inicializando servicios', { error: error.message });
+    throw error;
+  }
 };
 
 /**
@@ -145,8 +170,12 @@ exports.initialize = async () => {
 exports.cleanup = async () => {
   logger.info('Limpiando recursos de la función Lambda ETL');
   
-  // Aquí se pueden limpiar recursos como conexiones a bases de datos
-  // o archivos temporales si es necesario
+  try {
+    await HttpHandler.cleanup();
+    logger.info('Limpieza completada');
+  } catch (error) {
+    logger.error('Error en limpieza', { error: error.message });
+  }
 };
 
 // Ejecutar inicialización si se llama directamente

@@ -160,14 +160,30 @@ Resources:
         - Key: Project
           Value: data-pipeline
 
-  # Lambda Permission for S3 Event
-  LambdaETLPermission:
-    Type: AWS::Lambda::Permission
+  # Lambda URL for ETL Function
+  LambdaETLURL:
+    Type: AWS::Lambda::Url
     Properties:
-      FunctionName: !Ref LambdaETLFunction
-      Action: lambda:InvokeFunction
-      Principal: s3.amazonaws.com
-      SourceArn: !Sub arn:aws:s3:::${S3BucketRawName}
+      TargetFunctionArn: !Ref LambdaETLFunction
+      AuthType: NONE
+      Cors:
+        AllowCredentials: false
+        AllowHeaders: 
+          - 'Content-Type'
+          - 'X-Amz-Date'
+          - 'Authorization'
+          - 'X-Api-Key'
+          - 'X-Amz-Security-Token'
+          - 'X-Amz-User-Agent'
+        AllowMethods: 
+          - GET
+          - POST
+        AllowOrigins: 
+          - '*'
+        ExposeHeaders: 
+          - 'Content-Length'
+          - 'Content-Type'
+        MaxAge: 86400
 
   # CloudWatch Alarms for Lambda Functions
   LambdaETLErrorAlarm:
@@ -227,6 +243,12 @@ Outputs:
     Value: !Ref LambdaQueryURL
     Export:
       Name: !Sub ${AWS::StackName}-Query-URL
+
+  LambdaETLURL:
+    Description: URL pública de la función Lambda ETL
+    Value: !Ref LambdaETLURL
+    Export:
+      Name: !Sub ${AWS::StackName}-ETL-URL
 
   LambdaETLFunctionName:
     Description: Nombre de la función Lambda ETL

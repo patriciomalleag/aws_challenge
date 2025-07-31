@@ -22,6 +22,7 @@ const RAW_BUCKET = process.env.S3_BUCKET_RAW || 'data-pipeline-raw-ACCOUNT_ID';
 const CURATED_BUCKET = process.env.S3_BUCKET_CURATED || 'data-pipeline-curated-ACCOUNT_ID';
 const DDB_TABLE = process.env.DDB_TABLE_NAME || 'datasets-catalog';
 const LAMBDA_QUERY_FUNCTION_NAME = process.env.LAMBDA_QUERY_FUNCTION_NAME || 'data-pipeline-query-function';
+const LAMBDA_ETL_FUNCTION_NAME = process.env.LAMBDA_ETL_FUNCTION_NAME || 'data-pipeline-etl-function';
 
 // Middleware
 app.use(helmet());
@@ -176,13 +177,76 @@ app.post('/api/upload', upload.single('file'), async (req, res) => {
 
     await dynamodb.put(ddbParams).promise();
 
-    res.json({
-      success: true,
-      fileId: fileId,
-      message: 'Archivo subido correctamente',
-      s3Key: s3Key,
-      schemaKey: schemaKey
-    });
+    // Invocar Lambda ETL para procesar el archivo
+    try {
+      const lambdaParams = {
+        FunctionName: LAMBDA_ETL_FUNCTION_NAME,
+        InvocationType: 'RequestResponse',
+        Payload: JSON.stringify({
+          httpMethod: 'POST',
+          path: '/process',
+          body: JSON.stringify({
+            fileId: fileId,
+            bucketName: RAW_BUCKET,
+            objectKey: s3Key,
+            tableName: config.tableName,
+            directory: config.directory
+          }),
+          headers: {
+            'Content-Type': 'application/json'
+          }
+        })
+      };
+
+      const lambda = new AWS.Lambda();
+      const lambdaResponse = await lambda.invoke(lambdaParams).promise();
+
+      if (lambdaResponse.StatusCode !== 200) {
+        throw new Error('Error en la función Lambda ETL');
+      }
+
+      const responsePayload = JSON.parse(lambdaResponse.Payload);
+      
+      if (responsePayload.statusCode >= 400) {
+        const errorBody = JSON.parse(responsePayload.body);
+        console.error('Error en Lambda ETL:', errorBody.error);
+        
+        // No fallar la respuesta completa, pero registrar el error
+        res.json({
+          success: true,
+          fileId: fileId,
+          message: 'Archivo subido correctamente, pero falló el procesamiento ETL',
+          s3Key: s3Key,
+          schemaKey: schemaKey,
+          etlError: errorBody.error
+        });
+        return;
+      }
+
+      const etlResult = JSON.parse(responsePayload.body);
+      
+      res.json({
+        success: true,
+        fileId: fileId,
+        message: 'Archivo subido y procesado correctamente',
+        s3Key: s3Key,
+        schemaKey: schemaKey,
+        etlResult: etlResult.data
+      });
+
+    } catch (etlError) {
+      console.error('Error invocando Lambda ETL:', etlError);
+      
+      // No fallar la respuesta completa, el archivo ya fue subido exitosamente
+      res.json({
+        success: true,
+        fileId: fileId,
+        message: 'Archivo subido correctamente, pero falló el procesamiento ETL',
+        s3Key: s3Key,
+        schemaKey: schemaKey,
+        etlError: etlError.message
+      });
+    }
 
   } catch (error) {
     console.error('Error uploading file:', error);
