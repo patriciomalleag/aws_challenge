@@ -95,278 +95,71 @@ Resources:
       UserData:
         Fn::Base64: !Sub |
           #!/bin/bash
-          # Configurar logging a S3
-          LOG_BUCKET="${S3BucketLogs}"
-          INSTANCE_ID=`curl -s http://169.254.169.254/latest/meta-data/instance-id`
-          REGION="${AWS::Region}"
-          TIMESTAMP=`date +%Y%m%d_%H%M%S`
+          # UserData simplificado - Solo clonar y ejecutar script de setup
           
-          # Función para enviar logs a S3
-          send_log_to_s3() {
-            local log_file="$$1"
-            local s3_key="userdata-logs/$$INSTANCE_ID/$$TIMESTAMP_`basename $$log_file`"
-            
-            if [ -f "$$log_file" ]; then
-              aws s3 cp "$$log_file" "s3://${S3BucketLogs}/$$s3_key" --region "${AWS::Region}" --sse AES256
-              echo "Log enviado a S3: s3://${S3BucketLogs}/$$s3_key"
-            fi
-          }
+          # Variables básicas
+          INSTANCE_ID=$(curl -s http://169.254.169.254/latest/meta-data/instance-id)
+          REGION="${AWS::Region}"
+          LOG_FILE="/var/log/userdata.log"
           
           # Función para loggear con timestamp
           log_message() {
-            local message="$$1"
-            local timestamp=`date '+%Y-%m-%d %H:%M:%S'`
-            echo "[$$timestamp] $$message" | tee -a /var/log/userdata.log
+            local message="$1"
+            local timestamp=$(date '+%Y-%m-%d %H:%M:%S')
+            echo "[$timestamp] $message" | tee -a "$LOG_FILE"
           }
           
-          # Iniciar logging
+          # Inicio
           log_message "=== USERDATA START ==="
-          log_message "Instance ID: $$INSTANCE_ID"
-          log_message "Region: ${AWS::Region}"
-          log_message "Log Bucket: ${S3BucketLogs}"
+          log_message "Instance ID: $INSTANCE_ID"
+          log_message "Region: $REGION"
           
-          # Actualizar sistema
-          log_message "Actualizando sistema..."
-          yum update -y >> /var/log/userdata.log 2>&1
+          # Actualizar sistema e instalar git
+          log_message "Actualizando sistema e instalando git..."
+          yum update -y >> "$LOG_FILE" 2>&1
+          yum install -y git >> "$LOG_FILE" 2>&1
           
-          # Esperar a que las actualizaciones terminen
-          log_message "Esperando a que las actualizaciones terminen..."
-          while pgrep -f "yum|dnf" > /dev/null; do
-            log_message "Actualizaciones en progreso, esperando..."
-            sleep 30
-          done
-          
-          # Instalar dependencias
-          log_message "Instalando dependencias..."
-          yum install -y git nginx aws-cli >> /var/log/userdata.log 2>&1
-          
-          # Instalar Node.js desde el repositorio de Amazon Linux
-          log_message "Instalando Node.js..."
-          curl -sL https://rpm.nodesource.com/setup_18.x | bash - >> /var/log/userdata.log 2>&1
-          yum install -y nodejs >> /var/log/userdata.log 2>&1
-          
-          # Verificar que Node.js se instaló correctamente
-          log_message "Verificando instalación de Node.js..."
-          if ! command -v node &> /dev/null; then
-            log_message "ERROR: Node.js no se instaló correctamente"
-            exit 1
-          fi
-          log_message "Node.js instalado correctamente: `node --version`"
-          
-          # Instalar PM2 para gestión de procesos
-          log_message "Instalando PM2..."
-          npm install -g pm2 >> /var/log/userdata.log 2>&1
-          
-          # Crear directorio de la aplicación
-          log_message "Creando directorio de aplicación..."
+          # Crear directorio y clonar repositorio
+          log_message "Clonando repositorio..."
           mkdir -p /opt/webapp
           cd /opt/webapp
           
-          # Clonar el repositorio desde GitHub
-          log_message "Clonando repositorio..."
-          if ! git clone https://github.com/patriciomalleag/aws_challenge.git . >> /var/log/userdata.log 2>&1; then
-            log_message "ERROR: No se pudo clonar el repositorio"
-            # Crear estructura básica si falla
-            mkdir -p frontend backend-api
-            log_message "Repository clone failed, creating basic structure"
-          else
-            log_message "Repositorio clonado exitosamente"
-          fi
-          
-          # Instalar dependencias del frontend
-          log_message "Instalando dependencias del frontend..."
-          cd frontend
-          if [ -f package.json ]; then
-            npm install >> /var/log/userdata.log 2>&1 || log_message "ERROR: Frontend npm install failed"
-            npm run build >> /var/log/userdata.log 2>&1 || log_message "ERROR: Frontend build failed"
-            log_message "Frontend build completado"
-          else
-            log_message "WARNING: No package.json found in frontend"
-          fi
-          
-          # Instalar dependencias del backend
-          log_message "Instalando dependencias del backend..."
-          cd ../backend-api
-          if [ -f package.json ]; then
-            npm install >> /var/log/userdata.log 2>&1 || log_message "ERROR: Backend npm install failed"
-            log_message "Backend dependencies instaladas"
-          else
-            log_message "WARNING: No package.json found in backend"
-          fi
-          
-          # Configurar variables de entorno para el backend
-          log_message "Configurando variables de entorno..."
-          cat > /opt/webapp/backend-api/.env << EOF
-          PORT=8080
-          AWS_REGION=${AWS::Region}
-          S3_BUCKET_RAW=${S3BucketRaw}
-          S3_BUCKET_CURATED=${S3BucketCurated}
-          S3_BUCKET_LOGS=${S3BucketLogs}
-          DDB_TABLE_NAME=${DDBTableName}
-          LAMBDA_QUERY_FUNCTION_NAME=${LambdaQueryFunctionName}
-          EOF
-          
-          # Configurar Nginx para servir el frontend
-          log_message "Configurando Nginx..."
-          cat > /etc/nginx/conf.d/webapp.conf << 'EOF'
-          server {
-              listen 80;
-              server_name _;
-              
-              # Frontend (React)
-              location / {
-                  root /opt/webapp/frontend/build;
-                  try_files $$uri $$uri/ /index.html;
-                  add_header Cache-Control "no-cache, no-store, must-revalidate";
-              }
-              
-              # Backend API
-              location /api/ {
-                  proxy_pass http://localhost:8080;
-                  proxy_http_version 1.1;
-                  proxy_set_header Upgrade $$http_upgrade;
-                  proxy_set_header Connection 'upgrade';
-                  proxy_set_header Host $$host;
-                  proxy_set_header X-Real-IP $$remote_addr;
-                  proxy_set_header X-Forwarded-For $$proxy_add_x_forwarded_for;
-                  proxy_set_header X-Forwarded-Proto $$scheme;
-                  proxy_cache_bypass $$http_upgrade;
-              }
-              
-              # Health check endpoint
-              location /health {
-                  proxy_pass http://localhost:8080/health;
-                  proxy_set_header Host $$host;
-              }
-          }
-          EOF
-          
-          # Iniciar Nginx
-          log_message "Iniciando Nginx..."
-          systemctl enable nginx
-          systemctl start nginx >> /var/log/userdata.log 2>&1
-          
-          # Configurar PM2 para el backend
-          log_message "Configurando PM2..."
-          cd /opt/webapp/backend-api
-          if [ -f server.js ]; then
-            pm2 start server.js --name "backend-api" >> /var/log/userdata.log 2>&1 || log_message "ERROR: PM2 start failed"
-            pm2 startup >> /var/log/userdata.log 2>&1 || log_message "ERROR: PM2 startup failed"
-            pm2 save >> /var/log/userdata.log 2>&1 || log_message "ERROR: PM2 save failed"
-            log_message "PM2 configurado exitosamente"
-          else
-            log_message "No server.js found, creating basic health endpoint"
-            # Crear un servidor básico si no existe
-            cat > server.js << 'EOF'
-            const express = require('express');
-            const app = express();
-            const port = process.env.PORT || 8080;
+          if git clone https://github.com/patriciomalleag/aws_challenge.git . >> "$LOG_FILE" 2>&1; then
+            log_message "✅ Repositorio clonado exitosamente"
             
-            app.get('/health', (req, res) => {
-              res.status(200).json({ status: 'OK', timestamp: new Date().toISOString() });
-            });
+            # Ejecutar script de setup como root
+            log_message "Ejecutando script de setup como root..."
+            chmod +x infra/scripts/setup-ec2.sh
             
-            app.get('/api/test', (req, res) => {
-              res.status(200).json({ message: 'API is working' });
-            });
-            
-            app.listen(port, () => {
-              console.log('Server running on port ' + port);
-            });
-            EOF
-            
-            npm init -y >> /var/log/userdata.log 2>&1
-            npm install express >> /var/log/userdata.log 2>&1
-            pm2 start server.js --name "backend-api" >> /var/log/userdata.log 2>&1
-            pm2 startup >> /var/log/userdata.log 2>&1
-            pm2 save >> /var/log/userdata.log 2>&1
-            log_message "Servidor básico creado y configurado"
-          fi
-          
-          # Crear script de health check
-          log_message "Creando script de health check..."
-          cat > /opt/webapp/health.sh << 'EOF'
-          #!/bin/bash
-          # Verificar que Nginx esté corriendo
-          if ! systemctl is-active --quiet nginx; then
-            echo "FAIL: Nginx no está corriendo"
+            # Verificar que el script existe
+            if [ -f "infra/scripts/setup-ec2.sh" ]; then
+              log_message "Script encontrado, ejecutando con bash como root..."
+              if bash infra/scripts/setup-ec2.sh; then
+                log_message "✅ Setup completado exitosamente"
+              else
+                SETUP_EXIT_CODE=$?
+                log_message "❌ Error en el script de setup (código: $SETUP_EXIT_CODE)"
+                log_message "Contenido del directorio actual:"
+                ls -la >> "$LOG_FILE" 2>&1
+                log_message "Contenido de infra/scripts/:"
+                ls -la infra/scripts/ >> "$LOG_FILE" 2>&1 || echo "Directorio no existe" >> "$LOG_FILE"
+                exit 1
+              fi
+            else
+              log_message "❌ Script setup-ec2.sh no encontrado"
+              log_message "Directorio actual: $(pwd)"
+              log_message "Contenido del directorio actual:"
+              ls -la >> "$LOG_FILE" 2>&1
+              log_message "Contenido de infra/:"
+              ls -la infra/ >> "$LOG_FILE" 2>&1 || echo "Directorio infra no existe" >> "$LOG_FILE"
+              exit 1
+            fi
+          else
+            log_message "❌ Error al clonar repositorio"
             exit 1
           fi
           
-          # Verificar que el backend esté corriendo
-          if ! curl -f http://localhost:8080/health > /dev/null 2>&1; then
-            echo "FAIL: Backend no está respondiendo"
-            exit 1
-          fi
-          
-          # Verificar que el frontend esté accesible
-          if ! curl -f http://localhost/ > /dev/null 2>&1; then
-            echo "FAIL: Frontend no está accesible"
-            exit 1
-          fi
-          
-          echo "OK"
-          exit 0
-          EOF
-          chmod +x /opt/webapp/health.sh
-          
-          # Crear script para enviar logs periódicamente
-          log_message "Creando script de logging automático..."
-          cat > /opt/webapp/send-logs.sh << EOF
-          #!/bin/bash
-          LOG_BUCKET="${S3BucketLogs}"
-          INSTANCE_ID="$$INSTANCE_ID"
-          REGION="${AWS::Region}"
-          
-          # Enviar logs principales
-          aws s3 cp /var/log/userdata.log "s3://${S3BucketLogs}/userdata-logs/$$INSTANCE_ID/`date +%Y%m%d_%H%M%S`_userdata.log" --region "${AWS::Region}" --sse AES256 2>/dev/null
-          
-          # Enviar logs de PM2 si existen
-          if [ -f /root/.pm2/logs/backend-api-out.log ]; then
-            aws s3 cp /root/.pm2/logs/backend-api-out.log "s3://${S3BucketLogs}/pm2-logs/$$INSTANCE_ID/`date +%Y%m%d_%H%M%S`_backend-api-out.log" --region "${AWS::Region}" --sse AES256 2>/dev/null
-          fi
-          
-          if [ -f /root/.pm2/logs/backend-api-error.log ]; then
-            aws s3 cp /root/.pm2/logs/backend-api-error.log "s3://${S3BucketLogs}/pm2-logs/$$INSTANCE_ID/`date +%Y%m%d_%H%M%S`_backend-api-error.log" --region "${AWS::Region}" --sse AES256 2>/dev/null
-          fi
-          
-          # Enviar logs de nginx si existen
-          if [ -f /var/log/nginx/access.log ]; then
-            aws s3 cp /var/log/nginx/access.log "s3://${S3BucketLogs}/nginx-logs/$$INSTANCE_ID/`date +%Y%m%d_%H%M%S`_access.log" --region "${AWS::Region}" --sse AES256 2>/dev/null
-          fi
-          
-          if [ -f /var/log/nginx/error.log ]; then
-            aws s3 cp /var/log/nginx/error.log "s3://${S3BucketLogs}/nginx-logs/$$INSTANCE_ID/`date +%Y%m%d_%H%M%S`_error.log" --region "${AWS::Region}" --sse AES256 2>/dev/null
-          fi
-          EOF
-          chmod +x /opt/webapp/send-logs.sh
-          
-          # Configurar cron job para enviar logs cada 5 minutos
-          echo "*/5 * * * * /opt/webapp/send-logs.sh" | crontab -
-          
-          # Enviar logs finales
-          log_message "=== USERDATA COMPLETED ==="
-          log_message "Enviando logs finales a S3..."
-          
-          # Enviar logs a S3
-          aws s3 cp /var/log/userdata.log "s3://${S3BucketLogs}/userdata-logs/$$INSTANCE_ID/`date +%Y%m%d_%H%M%S`_userdata.log" --region "${AWS::Region}" --sse AES256 2>/dev/null || echo "No se pudo enviar logs a S3"
-          
-          # Verificar estado final
-          log_message "Verificando estado final de servicios..."
-          if systemctl is-active --quiet nginx; then
-            log_message "✓ Nginx está corriendo"
-          else
-            log_message "✗ Nginx NO está corriendo"
-          fi
-          
-          if curl -f http://localhost:8080/health > /dev/null 2>&1; then
-            log_message "✓ Backend está respondiendo"
-          else
-            log_message "✗ Backend NO está respondiendo"
-          fi
-          
-          # Enviar logs finales una vez más
-          aws s3 cp /var/log/userdata.log "s3://${S3BucketLogs}/userdata-logs/$$INSTANCE_ID/`date +%Y%m%d_%H%M%S`_userdata.log" --region "${AWS::Region}" --sse AES256 2>/dev/null || echo "No se pudo enviar logs a S3"
+          log_message "=== USERDATA COMPLETADO ==="
       BlockDeviceMappings:
         - DeviceName: /dev/xvda
           Ebs:
