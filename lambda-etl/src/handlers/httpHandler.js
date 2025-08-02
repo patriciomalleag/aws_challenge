@@ -43,26 +43,45 @@ exports.cleanup = async () => {
  * @returns {Object} - Respuesta HTTP
  */
 exports.handleProcessRequest = async (event, context) => {
+  console.log('========== HTTP HANDLER PROCESS REQUEST ==========');
+  console.log('Event recibido en handleProcessRequest:', JSON.stringify(event, null, 2));
+  
   const startTime = Date.now();
   const requestId = context.awsRequestId;
 
   try {
+    console.log('Parseando body del evento...');
     // Parsear body del request
     const body = JSON.parse(event.body || '{}');
+    console.log('Body parseado:', JSON.stringify(body, null, 2));
+    
     const { fileId, bucketName, objectKey, tableName, directory } = body;
+
+    console.log('Parámetros extraídos:', {
+      fileId,
+      bucketName,
+      objectKey,
+      tableName,
+      directory
+    });
 
     // Validar parámetros requeridos
     if (!fileId) {
+      console.log('ERROR: fileId faltante');
       throw createError('VALIDATION_ERROR', 'fileId es requerido');
     }
     
     if (!bucketName) {
+      console.log('ERROR: bucketName faltante');
       throw createError('VALIDATION_ERROR', 'bucketName es requerido');
     }
     
     if (!objectKey) {
+      console.log('ERROR: objectKey faltante');
       throw createError('VALIDATION_ERROR', 'objectKey es requerido');
     }
+
+    console.log('Todos los parámetros validados correctamente');
 
     logger.info('Iniciando procesamiento ETL via HTTP', {
       requestId,
@@ -73,6 +92,7 @@ exports.handleProcessRequest = async (event, context) => {
       directory
     });
 
+    console.log('Llamando a processFileForETL...');
     // Procesar archivo usando la lógica existente adaptada
     const result = await processFileForETL({
       fileId,
@@ -81,6 +101,8 @@ exports.handleProcessRequest = async (event, context) => {
       tableName,
       directory
     }, context);
+    
+    console.log('Resultado de processFileForETL:', result);
     
     const processingTime = Date.now() - startTime;
     
@@ -147,6 +169,9 @@ exports.handleProcessRequest = async (event, context) => {
  * @returns {Object} - Resultado del procesamiento
  */
 const processFileForETL = async (params, context) => {
+  console.log('========== PROCESS FILE FOR ETL ==========');
+  console.log('Parámetros recibidos:', JSON.stringify(params, null, 2));
+  
   const startTime = Date.now();
   const requestId = context.awsRequestId;
   const { fileId, bucketName, objectKey, tableName, directory } = params;
@@ -161,15 +186,22 @@ const processFileForETL = async (params, context) => {
   });
 
   try {
+    console.log('Validando bucket...');
     // 1. Validar que el bucket sea el correcto
     const expectedRawBucket = process.env.S3_BUCKET_RAW;
+    console.log('Bucket esperado:', expectedRawBucket);
+    console.log('Bucket recibido:', bucketName);
+    
     if (bucketName !== expectedRawBucket) {
+      console.log('ERROR: Bucket incorrecto');
       throw createError('VALIDATION_ERROR', 
         `Bucket incorrecto: ${bucketName}. Se esperaba: ${expectedRawBucket}`);
     }
 
+    console.log('Verificando tipo de archivo...');
     // 2. Solo procesar archivos CSV, no esquemas JSON
     if (objectKey.endsWith('.json')) {
+      console.log('Ignorando archivo JSON (esquema):', objectKey);
       logger.info('Ignorando archivo JSON (esquema)', {
         requestId,
         objectKey
@@ -181,8 +213,10 @@ const processFileForETL = async (params, context) => {
       };
     }
 
+    console.log('Obteniendo metadatos del objeto S3...');
     // 3. Obtener metadatos del objeto S3
     const objectMetadata = await S3Utils.getObjectMetadata(bucketName, objectKey);
+    console.log('Metadatos obtenidos:', objectMetadata);
     
     logger.info('Metadatos del objeto obtenidos', {
       requestId,

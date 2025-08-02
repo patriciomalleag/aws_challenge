@@ -15,6 +15,10 @@ const HttpHandler = require('./handlers/httpHandler');
  * @returns {Object} - Respuesta HTTP
  */
 exports.handler = async (event, context) => {
+  console.log('========== LAMBDA ETL INICIADA ==========');
+  console.log('Evento completo recibido:', JSON.stringify(event, null, 2));
+  console.log('Contexto recibido:', JSON.stringify(context, null, 2));
+  
   const startTime = Date.now();
   const requestId = context.awsRequestId;
   
@@ -25,6 +29,9 @@ exports.handler = async (event, context) => {
     queryStringParameters: event.queryStringParameters,
     headers: event.headers
   });
+
+  console.log('Método HTTP:', event.httpMethod);
+  console.log('Path:', event.path);
 
   try {
     // Configurar headers CORS
@@ -47,11 +54,17 @@ exports.handler = async (event, context) => {
     // Procesar request según el método y path
     let response;
     
+    console.log('Evaluando método HTTP:', event.httpMethod);
+    
     switch (event.httpMethod) {
       case 'POST':
+        console.log('Método POST detectado, evaluando path:', event.path);
         if (event.path === '/process') {
+          console.log('Path /process detectado, llamando a HttpHandler.handleProcessRequest');
           response = await HttpHandler.handleProcessRequest(event, context);
+          console.log('Respuesta del HttpHandler:', response);
         } else {
+          console.log('Path no reconocido:', event.path);
           throw createError('NOT_FOUND', `Endpoint no encontrado: ${event.path}`);
         }
         break;
