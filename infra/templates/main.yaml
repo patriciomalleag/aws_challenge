@@ -101,7 +101,7 @@ Resources:
         LabRoleArn: !Ref LabRoleArn
         VPCId: !GetAtt NetworkStack.Outputs.VPCId
         PublicSubnetId: !GetAtt NetworkStack.Outputs.PublicSubnetId
-        InstanceType: t3.micro
+        InstanceType: t3.small
         S3BucketRaw: !GetAtt StorageStack.Outputs.S3BucketRawName
         S3BucketCurated: !GetAtt StorageStack.Outputs.S3BucketCuratedName
         S3BucketLogs: !GetAtt StorageStack.Outputs.S3BucketLogsName
