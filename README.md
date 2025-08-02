@@ -154,7 +154,7 @@ Usuario → Frontend → Lambda Query → S3 Curated → Resultados
 ### **Vista Ingestor de Datos:**
 
 1. **Ver Archivos Existentes**: Tabla con archivos cargados y su estado
-2. **Subir Nuevo Archivo**: 
+2. **Subir Nuevo Archivo**:
    - Arrastrar archivo CSV o hacer clic para seleccionar
    - Configurar separador, directorio y nombre de tabla
    - Revisar y editar esquema automáticamente detectado
@@ -248,4 +248,4 @@ Para contribuir al proyecto:
 
 ---
 
-**Desarrollado para MCDS de IMMUNE usando AWS Academy Learner Lab** 🚀 
+**Desarrollado para MCDS de IMMUNE usando AWS Academy Learner Lab** 🚀
