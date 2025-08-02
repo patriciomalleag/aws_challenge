@@ -185,6 +185,7 @@ Usuario → Frontend → Backend API → S3 Raw → Resultados
 ### **Proceso Automático:**
 
 **Para Ingesta:**
+
 1. El archivo se sube al bucket S3 Raw
 2. Se guarda el esquema en DynamoDB
 3. Lambda ETL se activa automáticamente
@@ -192,6 +193,7 @@ Usuario → Frontend → Backend API → S3 Raw → Resultados
 5. Actualiza el estado en DynamoDB
 
 **Para Consultas:**
+
 1. Usuario selecciona tabla y escribe query SQL
 2. Frontend envía consulta al Backend API
 3. Backend busca archivos en DynamoDB
