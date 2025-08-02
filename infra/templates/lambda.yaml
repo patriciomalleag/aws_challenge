@@ -28,6 +28,10 @@ Parameters:
   DynamoDBTableName:
     Type: String
     Description: Nombre de la tabla DynamoDB (importado del stack de almacenamiento)
+    
+  S3BucketCodeName:
+    Type: String
+    Description: Nombre del bucket S3 para código Lambda
 
 Resources:
   # Lambda ETL Function
@@ -38,17 +42,8 @@ Resources:
       Runtime: nodejs18.x
       Handler: src/index.handler
       Code:
-        ZipFile: |
-          exports.handler = async (event) => {
-            return { 
-              statusCode: 200, 
-              body: JSON.stringify({ 
-                success: true,
-                message: 'ETL Function Deployed',
-                data: {}
-              })
-            };
-          };
+        S3Bucket: !Ref S3BucketCodeName
+        S3Key: lambda-etl.zip
       Role: !Ref LabRoleArn
       Timeout: !Ref LambdaTimeout
       MemorySize: !Ref LambdaMemorySize
@@ -71,17 +66,8 @@ Resources:
       Runtime: nodejs18.x
       Handler: src/index.handler
       Code:
-        ZipFile: |
-          exports.handler = async (event) => {
-            return { 
-              statusCode: 200, 
-              body: JSON.stringify({ 
-                success: true,
-                message: 'Query Function Deployed',
-                data: { rows: [], columns: [] }
-              })
-            };
-          };
+        S3Bucket: !Ref S3BucketCodeName
+        S3Key: lambda-query.zip
       Role: !Ref LabRoleArn
       Timeout: !Ref LambdaTimeout
       MemorySize: !Ref LambdaMemorySize

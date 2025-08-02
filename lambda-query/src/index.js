@@ -23,8 +23,11 @@ exports.handler = async (event, context) => {
     method: event.httpMethod,
     path: event.path,
     queryStringParameters: event.queryStringParameters,
-    headers: event.headers
+    headers: event.headers,
+    body: event.body
   });
+  
+
 
   try {
     // Configurar headers CORS

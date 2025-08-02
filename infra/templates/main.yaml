@@ -95,6 +95,7 @@ Resources:
         LambdaTimeout: !Ref LambdaTimeout
         S3BucketRawName: !GetAtt StorageStack.Outputs.S3BucketRawName
         DynamoDBTableName: !GetAtt StorageStack.Outputs.DynamoDBTableName
+        S3BucketCodeName: !Sub "${AWS::AccountId}-lambda-code-${AWS::Region}"
       Tags:
         - Key: Name
           Value: !Sub ${AWS::StackName}-Lambda

@@ -7,7 +7,7 @@
 const { logger, logError, logPerformance } = require('../../../shared/utils/logger');
 const { createError } = require('../../../shared/constants/errorCodes');
 const AWS = require('aws-sdk');
-const sqlEngine = require('./sqlEngine');
+const sqlEngine = require('./simpleSqlEngine');
 
 // Configuración de AWS
 const s3 = new AWS.S3();
