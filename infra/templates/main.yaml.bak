@@ -80,9 +80,6 @@ Resources:
         LabRoleArn: !Ref LabRoleArn
         LambdaMemorySize: !Ref LambdaMemorySize
         LambdaTimeout: !Ref LambdaTimeout
-        VPCId: !GetAtt NetworkStack.Outputs.VPCId
-        PrivateSubnetId: !GetAtt NetworkStack.Outputs.PrivateSubnetId
-        LambdaSecurityGroupId: !GetAtt NetworkStack.Outputs.LambdaSecurityGroupId
         S3BucketRawName: !GetAtt StorageStack.Outputs.S3BucketRawName
         S3BucketCuratedName: !GetAtt StorageStack.Outputs.S3BucketCuratedName
         DynamoDBTableName: !GetAtt StorageStack.Outputs.DynamoDBTableName
@@ -130,12 +127,6 @@ Outputs:
     Value: !GetAtt NetworkStack.Outputs.PublicSubnetId
     Export:
       Name: !Sub ${AWS::StackName}-Public-Subnet-ID
-
-  LambdaSecurityGroupId:
-    Description: ID del Security Group para Lambda
-    Value: !GetAtt NetworkStack.Outputs.LambdaSecurityGroupId
-    Export:
-      Name: !Sub ${AWS::StackName}-Lambda-SG-ID
 
   # Storage Outputs
   S3BucketRawName:
