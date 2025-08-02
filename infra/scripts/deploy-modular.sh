@@ -181,7 +181,7 @@ package_and_upload_lambda_code() {
     # Instalar dependencias si no existen
     if [[ ! -d "node_modules" ]]; then
         log_info "Instalando dependencias de lambda-etl..."
-        npm install --production
+        npm install --omit=dev
     fi
     
     # Crear ZIP incluyendo shared
@@ -203,7 +203,7 @@ package_and_upload_lambda_code() {
     # Instalar dependencias si no existen
     if [[ ! -d "node_modules" ]]; then
         log_info "Instalando dependencias de lambda-query..."
-        npm install --production
+        npm install --omit=dev
     fi
     
     # Crear ZIP incluyendo shared
