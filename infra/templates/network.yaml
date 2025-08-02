@@ -118,8 +118,6 @@ Resources:
       SubnetId: !Ref PrivateSubnet
       RouteTableId: !Ref PrivateRouteTable
 
-  # Nota: Security Group para Lambda eliminado ya que las Lambdas están fuera de VPC
-
 Outputs:
   VPCId:
     Description: ID de la VPC creada
