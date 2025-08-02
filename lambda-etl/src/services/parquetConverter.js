@@ -39,13 +39,20 @@ const convertToParquet = async (data, schema, outputKey) => {
     const parquetSchema = optimizeSchemaForParquet(schema);
 
     // Crear writer de Parquet
+    console.log('[PARQUET] Creando writer con esquema:', JSON.stringify(parquetSchema, null, 2));
+    console.log('[PARQUET] Ruta temporal:', tempFilePath);
+    
     const writer = await parquet.ParquetWriter.openFile(parquetSchema, tempFilePath, {
       compression: PARQUET_COMPRESSION.ALGORITHM,
       rowGroupSize: 10000 // Tamaño del grupo de filas
     });
+    
+    console.log('[PARQUET] Writer creado exitosamente');
 
     // Convertir y escribir datos
+    console.log('[PARQUET] Iniciando escritura de', data.length, 'filas');
     let processedRows = 0;
+    
     for (const row of data) {
       const parquetRow = {};
       
@@ -53,6 +60,11 @@ const convertToParquet = async (data, schema, outputKey) => {
       for (const field of schema) {
         const value = row[field.name];
         parquetRow[field.name] = convertValueToParquetType(value, field.type);
+      }
+      
+      // Log de la primera fila para debug
+      if (processedRows === 0) {
+        console.log('[PARQUET] Primera fila convertida:', JSON.stringify(parquetRow, null, 2));
       }
       
       await writer.appendRow(parquetRow);
@@ -68,8 +80,10 @@ const convertToParquet = async (data, schema, outputKey) => {
       }
     }
 
+    console.log('[PARQUET] Finalizando escritura. Filas procesadas:', processedRows);
     // Cerrar writer
     await writer.close();
+    console.log('[PARQUET] Writer cerrado exitosamente');
 
     // Obtener estadísticas del archivo
     const stats = await fs.stat(tempFilePath);

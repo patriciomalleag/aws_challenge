@@ -51,6 +51,7 @@ exports.handleProcessRequest = async (event, context) => {
 
   try {
     console.log('Parseando body del evento...');
+    console.log('Event body raw:', event.body);
     // Parsear body del request
     const body = JSON.parse(event.body || '{}');
     console.log('Body parseado:', JSON.stringify(body, null, 2));
@@ -292,6 +293,7 @@ const processFileForETL = async (params, context) => {
     }
 
     try {
+      console.log('[ETL] Iniciando procesamiento CSV con esquema...');
       // 8. Procesar archivo CSV con el esquema
       const csvProcessingResult = await CsvProcessor.processCsvFileWithSchema(
         tempCsvPath, 
@@ -299,6 +301,10 @@ const processFileForETL = async (params, context) => {
         schema.schema,
         separator
       );
+      console.log('[ETL] Procesamiento CSV completado:', {
+        rowCount: csvProcessingResult.rowCount,
+        columnCount: csvProcessingResult.columnCount
+      });
       
       logger.info('Archivo CSV procesado con esquema', {
         requestId,
@@ -307,13 +313,19 @@ const processFileForETL = async (params, context) => {
         schema: csvProcessingResult.schema
       });
 
+      console.log('[ETL] Iniciando conversión a Parquet...');
       // 9. Convertir a Parquet
       const parquetKey = `${metaDirectory}/${metaFileId}/data.parquet`;
+      console.log('[ETL] Parquet key:', parquetKey);
       const parquetResult = await ParquetConverter.convertToParquet(
         csvProcessingResult.data,
         csvProcessingResult.schema,
         parquetKey
       );
+      console.log('[ETL] Conversión a Parquet completada:', {
+        filePath: parquetResult.filePath,
+        fileSize: parquetResult.fileSize
+      });
 
       logger.info('Conversión a Parquet completada', {
         requestId,
@@ -322,9 +334,14 @@ const processFileForETL = async (params, context) => {
         compressionRatio: parquetResult.compressionRatio
       });
 
+      console.log('[ETL] Iniciando subida a bucket curated...');
       // 10. Subir archivo Parquet a bucket CURATED
       const curatedBucket = process.env.S3_BUCKET_CURATED;
-      await S3Utils.uploadObject(curatedBucket, parquetKey, parquetResult.filePath);
+      console.log('[ETL] Curated bucket:', curatedBucket);
+      console.log('[ETL] Subiendo archivo:', parquetResult.filePath, 'a key:', parquetKey);
+      
+      const uploadResult = await S3Utils.uploadObject(curatedBucket, parquetKey, parquetResult.filePath);
+      console.log('[ETL] Archivo Parquet subido exitosamente:', uploadResult.ETag);
 
       logger.info('Archivo Parquet subido a S3', {
         requestId,
@@ -333,6 +350,7 @@ const processFileForETL = async (params, context) => {
         fileId: metaFileId
       });
 
+      console.log('[ETL] Iniciando actualización de catálogo en DynamoDB...');
       // 11. Actualizar catálogo en DynamoDB
       const catalogEntry = await CatalogService.updateCatalogEntry({
         fileId: metaFileId,
@@ -358,6 +376,8 @@ const processFileForETL = async (params, context) => {
           separator: separator
         }
       });
+      
+      console.log('[ETL] Catálogo actualizado exitosamente en DynamoDB');
 
       logger.info('Dataset actualizado en DynamoDB', {
         requestId,

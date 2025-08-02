@@ -274,17 +274,16 @@ app.post('/api/upload', upload.single('file'), async (req, res) => {
         console.error('[ERROR] Error en Lambda ETL:', errorBody.error);
         console.error('[DEBUG] Detalles completos de error Lambda:', JSON.stringify(errorBody));
         
-        // No fallar la respuesta completa, pero registrar el error
-        console.log('[INFO] Devolviendo respuesta parcial con información de error ETL');
-        res.json({
-          success: true,
+        // Fallar la respuesta completa para que el frontend sepa que hubo un error
+        console.log('[ERROR] Devolviendo error de procesamiento ETL');
+        return res.status(500).json({
+          success: false,
+          error: 'Error en el procesamiento ETL: ' + errorBody.error,
           fileId: fileId,
-          message: 'Archivo subido correctamente, pero falló el procesamiento ETL',
           s3Key: s3Key,
           schemaKey: schemaKey,
           etlError: errorBody.error
         });
-        return;
       }
 
       console.log('[DEBUG] Lambda ETL ejecutado exitosamente, procesando resultado');
@@ -312,12 +311,12 @@ app.post('/api/upload', upload.single('file'), async (req, res) => {
         errorCode: lambdaError.code || 'UNKNOWN'
       }));
       
-      // No fallar la respuesta completa, pero registrar el error
-      console.log('[INFO] Devolviendo respuesta parcial con información de error Lambda');
-      res.json({
-        success: true,
+      // Fallar la respuesta completa para que el frontend sepa que hubo un error
+      console.log('[ERROR] Devolviendo error de invocación Lambda');
+      return res.status(500).json({
+        success: false,
+        error: 'Error invocando Lambda ETL: ' + lambdaError.message,
         fileId: fileId,
-        message: 'Archivo subido correctamente, pero falló el procesamiento ETL',
         s3Key: s3Key,
         schemaKey: schemaKey,
         etlError: lambdaError.message

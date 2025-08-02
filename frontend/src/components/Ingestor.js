@@ -310,7 +310,11 @@ function Ingestor() {
           data: error.response.data,
           headers: error.response.headers
         });
-        toast.error(`Error del servidor: ${error.response.data?.error || error.response.statusText}`);
+        
+        // Mostrar mensaje de error más específico
+        const errorMessage = error.response.data?.error || error.response.statusText;
+        console.error('[FRONTEND] Mensaje de error específico:', errorMessage);
+        toast.error(`Error del servidor: ${errorMessage}`);
       } else if (error.request) {
         console.error('[FRONTEND] Error de red en upload - no se recibió respuesta:', error.request);
         toast.error('Error de conexión con el servidor');
