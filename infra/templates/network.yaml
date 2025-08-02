@@ -105,8 +105,6 @@ Resources:
       DestinationCidrBlock: 0.0.0.0/0
       GatewayId: !Ref InternetGateway
 
-  # Nota: Ruta privada eliminada ya que no hay NAT Gateway
-
   # Route Table Associations
   PublicSubnetRouteTableAssociation:
     Type: AWS::EC2::SubnetRouteTableAssociation
