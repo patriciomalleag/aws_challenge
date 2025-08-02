@@ -1,7 +1,7 @@
 {
   "name": "lambda-etl",
   "version": "1.0.0",
-  "description": "Función Lambda para procesamiento ETL de archivos CSV a Parquet",
+  "description": "Función Lambda para procesamiento ETL de archivos CSV",
   "main": "src/index.js",
   "scripts": {
     "start": "node src/index.js",
@@ -11,7 +11,6 @@
     "test:coverage": "jest --coverage",
     "test:integration": "jest --config jest.integration.config.js",
     "test-local": "node scripts/test-local.js",
-    "test-parquet": "node scripts/test-parquet-conversion.js",
     "deploy": "serverless deploy",
     "deploy:prod": "serverless deploy --stage production",
     "remove": "serverless remove",
@@ -26,7 +25,6 @@
     "lambda",
     "etl",
     "csv",
-    "parquet",
     "serverless",
     "data-processing"
   ],
@@ -41,8 +39,7 @@
     "lodash": "^4.17.21",
     "joi": "^17.9.2",
     "winston": "^3.10.0",
-    "fs-extra": "^11.1.1",
-    "parquetjs": "^0.10.2"
+    "fs-extra": "^11.1.1"
   },
   "devDependencies": {
     "jest": "^29.6.2",

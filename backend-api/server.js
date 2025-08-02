@@ -19,7 +19,6 @@ const dynamodb = new AWS.DynamoDB.DocumentClient();
 
 // Configuración de buckets y tabla
 const RAW_BUCKET = process.env.S3_BUCKET_RAW || 'data-pipeline-raw-ACCOUNT_ID';
-const CURATED_BUCKET = process.env.S3_BUCKET_CURATED || 'data-pipeline-curated-ACCOUNT_ID';
 const DDB_TABLE = process.env.DDB_TABLE_NAME || 'datasets-catalog';
 const LAMBDA_QUERY_FUNCTION_NAME = process.env.LAMBDA_QUERY_FUNCTION_NAME || 'data-pipeline-query-function';
 const LAMBDA_ETL_FUNCTION_NAME = process.env.LAMBDA_ETL_FUNCTION_NAME || 'data-pipeline-etl-function';
@@ -566,7 +565,6 @@ app.listen(PORT, () => {
   console.log('Configuración:');
   console.log(`- Región AWS: ${process.env.AWS_REGION || 'us-east-1'}`);
   console.log(`- Bucket Raw: ${RAW_BUCKET}`);
-  console.log(`- Bucket Curated: ${CURATED_BUCKET}`);
   console.log(`- Tabla DynamoDB: ${DDB_TABLE}`);
   console.log(`- Lambda ETL: ${LAMBDA_ETL_FUNCTION_NAME}`);
   console.log(`- Lambda Query: ${LAMBDA_QUERY_FUNCTION_NAME}`);

@@ -175,7 +175,6 @@ log_message "Creando servicio systemd para el backend..."
 # Obtener variables de entorno (pasadas desde CloudFormation UserData)
 CF_AWS_REGION="${AWS_REGION:-us-east-1}"
 CF_S3_BUCKET_RAW="${S3_BUCKET_RAW:-data-pipeline-raw-unknown}"
-CF_S3_BUCKET_CURATED="${S3_BUCKET_CURATED:-data-pipeline-curated-unknown}"
 CF_S3_BUCKET_LOGS="${S3_BUCKET_LOGS:-data-pipeline-logs-unknown}"
 CF_DDB_TABLE_NAME="${DDB_TABLE_NAME:-datasets-catalog}"
 CF_LAMBDA_QUERY_FUNCTION_NAME="${LAMBDA_QUERY_FUNCTION_NAME:-data-pipeline-query-function}"
@@ -184,7 +183,6 @@ CF_LAMBDA_ETL_FUNCTION_NAME="${LAMBDA_ETL_FUNCTION_NAME:-data-pipeline-etl-funct
 log_message "Configurando backend con variables de CloudFormation:"
 log_message "  AWS_REGION: $CF_AWS_REGION"
 log_message "  S3_BUCKET_RAW: $CF_S3_BUCKET_RAW"
-log_message "  S3_BUCKET_CURATED: $CF_S3_BUCKET_CURATED"
 log_message "  DDB_TABLE_NAME: $CF_DDB_TABLE_NAME"
 log_message "  LAMBDA_QUERY_FUNCTION_NAME: $CF_LAMBDA_QUERY_FUNCTION_NAME"
 log_message "  LAMBDA_ETL_FUNCTION_NAME: $CF_LAMBDA_ETL_FUNCTION_NAME"
@@ -205,7 +203,6 @@ Environment=NODE_ENV=production
 Environment=PORT=8080
 Environment=AWS_REGION=$CF_AWS_REGION
 Environment=S3_BUCKET_RAW=$CF_S3_BUCKET_RAW
-Environment=S3_BUCKET_CURATED=$CF_S3_BUCKET_CURATED
 Environment=S3_BUCKET_LOGS=$CF_S3_BUCKET_LOGS
 Environment=DDB_TABLE_NAME=$CF_DDB_TABLE_NAME
 Environment=LAMBDA_QUERY_FUNCTION_NAME=$CF_LAMBDA_QUERY_FUNCTION_NAME

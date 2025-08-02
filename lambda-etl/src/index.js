@@ -1,6 +1,6 @@
 /**
  * Punto de entrada principal para la función Lambda ETL
- * Procesa archivos CSV via peticiones HTTP, los valida y convierte a Parquet
+ * Procesa archivos CSV via peticiones HTTP
  * @module lambda-etl/index
  */
 
@@ -155,7 +155,6 @@ exports.initialize = async () => {
   // Validar variables de entorno requeridas
   const requiredEnvVars = [
     'S3_BUCKET_RAW',
-    'S3_BUCKET_CURATED',
     'DDB_TABLE_NAME'
   ];
 

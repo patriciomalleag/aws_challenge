@@ -24,12 +24,6 @@ const MAX_FILE_SIZES = {
   DEFAULT: 100 * 1024 * 1024 // 100MB por defecto
 };
 
-// Configuración de compresión para archivos Parquet
-const PARQUET_COMPRESSION = {
-  ALGORITHM: 'snappy',
-  LEVEL: 1
-};
-
 // Configuración de chunking para archivos grandes
 const CHUNK_CONFIG = {
   MAX_ROWS_PER_CHUNK: 10000,
@@ -41,10 +35,6 @@ const DOWNLOAD_HEADERS = {
   CSV: {
     'Content-Type': 'text/csv',
     'Content-Disposition': 'attachment; filename="data.csv"'
-  },
-  PARQUET: {
-    'Content-Type': 'application/octet-stream',
-    'Content-Disposition': 'attachment; filename="data.parquet"'
   },
   JSON: {
     'Content-Type': 'application/json',
@@ -105,7 +95,6 @@ module.exports = {
   ALLOWED_MIME_TYPES,
   ALLOWED_EXTENSIONS,
   MAX_FILE_SIZES,
-  PARQUET_COMPRESSION,
   CHUNK_CONFIG,
   DOWNLOAD_HEADERS,
   isAllowedMimeType,

@@ -123,11 +123,6 @@ update_parameters() {
                 BUCKET_NAME="data-pipeline-raw-$ACCOUNT_ID"
                 echo "{\"ParameterKey\":\"$key\",\"ParameterValue\":\"$BUCKET_NAME\"}" >> "$TEMP_PARAMS"
                 ;;
-            "S3BucketCurated")
-                # Generar nombre de bucket dinámicamente
-                BUCKET_NAME="data-pipeline-curated-$ACCOUNT_ID"
-                echo "{\"ParameterKey\":\"$key\",\"ParameterValue\":\"$BUCKET_NAME\"}" >> "$TEMP_PARAMS"
-                ;;
             "DDBTableName")
                 # Generar nombre de tabla dinámicamente
                 TABLE_NAME="datasets-catalog"

@@ -23,7 +23,6 @@ const updateCatalogEntry = async (catalogData) => {
     directory,
     originalFileName,
     originalFileSize,
-    parquetFileSize,
     schema,
     rowCount,
     columnCount,
@@ -46,7 +45,6 @@ const updateCatalogEntry = async (catalogData) => {
       UpdateExpression: `
         SET 
           #status = :status,
-          #parquetFileSize = :parquetFileSize,
           #rowCount = :rowCount,
           #columnCount = :columnCount,
           #s3Location = :s3Location,
@@ -56,7 +54,6 @@ const updateCatalogEntry = async (catalogData) => {
       `,
       ExpressionAttributeNames: {
         '#status': 'status',
-        '#parquetFileSize': 'parquetFileSize',
         '#rowCount': 'rowCount',
         '#columnCount': 'columnCount',
         '#s3Location': 's3Location',
@@ -66,7 +63,6 @@ const updateCatalogEntry = async (catalogData) => {
       },
       ExpressionAttributeValues: {
         ':status': 'processed',
-        ':parquetFileSize': parquetFileSize,
         ':rowCount': rowCount,
         ':columnCount': columnCount,
         ':s3Location': s3Location,

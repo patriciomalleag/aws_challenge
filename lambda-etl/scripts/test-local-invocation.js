@@ -79,14 +79,12 @@ async function testLocalInvocation() {
 process.env.NODE_ENV = 'development';
 process.env.AWS_REGION = 'us-east-1';
 process.env.S3_BUCKET_RAW = 'data-pipeline-raw-ACCOUNT_ID';
-process.env.S3_BUCKET_CURATED = 'data-pipeline-curated-ACCOUNT_ID';
 process.env.DDB_TABLE_NAME = 'datasets-catalog';
 
 console.log('Variables de entorno configuradas:');
 console.log('- NODE_ENV:', process.env.NODE_ENV);
 console.log('- AWS_REGION:', process.env.AWS_REGION);
 console.log('- S3_BUCKET_RAW:', process.env.S3_BUCKET_RAW);
-console.log('- S3_BUCKET_CURATED:', process.env.S3_BUCKET_CURATED);
 console.log('- DDB_TABLE_NAME:', process.env.DDB_TABLE_NAME);
 
 // Ejecutar prueba

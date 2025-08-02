@@ -28,10 +28,6 @@ Parameters:
     Type: String
     Description: Nombre del bucket S3 raw (importado del stack de almacenamiento)
     
-  S3BucketCuratedName:
-    Type: String
-    Description: Nombre del bucket S3 curated (importado del stack de almacenamiento)
-    
   DynamoDBTableName:
     Type: String
     Description: Nombre de la tabla DynamoDB (importado del stack de almacenamiento)
@@ -55,7 +51,6 @@ Resources:
       Environment:
         Variables:
           S3_BUCKET_RAW: !Ref S3BucketRawName
-          S3_BUCKET_CURATED: !Ref S3BucketCuratedName
           DDB_TABLE_NAME: !Ref DynamoDBTableName
           NODE_ENV: production
       Tags:
@@ -81,7 +76,7 @@ Resources:
       MemorySize: !Ref LambdaMemorySize
       Environment:
         Variables:
-          S3_BUCKET_CURATED: !Ref S3BucketCuratedName
+          S3_BUCKET_RAW: !Ref S3BucketRawName
           DDB_TABLE_NAME: !Ref DynamoDBTableName
           NODE_ENV: production
           MAX_QUERY_TIMEOUT_MS: 30000

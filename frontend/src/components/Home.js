@@ -57,9 +57,9 @@ function Home() {
             </div>
             <h3>Almacenamiento Optimizado</h3>
             <p>
-              Tus datos se almacenan en formato Parquet para consultas rápidas
-              y eficientes. Automáticamente convertimos CSV a Parquet para
-              mejorar el rendimiento de las consultas.
+              Tus datos se almacenan en formato CSV para consultas rápidas
+              y eficientes. Además, el sistema mantiene un catálogo de metadatos
+              para facilitar la gestión y búsqueda de tus archivos.
             </p>
           </div>
         </div>
@@ -71,8 +71,7 @@ function Home() {
             </div>
             <h3>Procesamiento Automático</h3>
             <p>
-              El sistema procesa automáticamente tus archivos CSV, los convierte
-              a Parquet y actualiza el catálogo de metadatos. Todo el proceso
+              El sistema procesa automáticamente tus archivos CSV y actualiza el catálogo de metadatos. Todo el proceso
               es transparente y eficiente.
             </p>
           </div>

@@ -1,6 +1,5 @@
 /**
  * Manejador HTTP para la función Lambda ETL
- * Procesa requests HTTP para procesamiento ETL de archivos CSV a Parquet
  * @module lambda-etl/handlers/httpHandler
  */
 
@@ -8,7 +7,6 @@ const { logger, logError, logPerformance } = require('../../../shared/utils/logg
 const { createError } = require('../../../shared/constants/errorCodes');
 const { isAllowedMimeType, isValidFileSize } = require('../../../shared/constants/fileTypes');
 const CsvProcessor = require('../services/csvProcessor');
-const ParquetConverter = require('../services/parquetConverter');
 const CatalogService = require('../services/catalogService');
 const S3Utils = require('../utils/s3Utils');
 const FileUtils = require('../utils/fileUtils');
@@ -112,7 +110,6 @@ exports.handleProcessRequest = async (event, context) => {
       fileId,
       tableName,
       originalSize: result.originalSize,
-      parquetSize: result.parquetSize,
       rowCount: result.rowCount
     });
 
@@ -128,8 +125,6 @@ exports.handleProcessRequest = async (event, context) => {
           tableName: result.tableName,
           processingTime: processingTime,
           originalSize: result.originalSize,
-          parquetSize: result.parquetSize,
-          compressionRatio: result.compressionRatio,
           rowCount: result.rowCount,
           columnCount: result.columnCount,
           status: result.status
@@ -292,7 +287,7 @@ const processFileForETL = async (params, context) => {
       };
     }
 
-    try {
+      try {
       console.log('[ETL] Iniciando procesamiento CSV con esquema...');
       // 8. Procesar archivo CSV con el esquema
       const csvProcessingResult = await CsvProcessor.processCsvFileWithSchema(
@@ -313,60 +308,19 @@ const processFileForETL = async (params, context) => {
         schema: csvProcessingResult.schema
       });
 
-      console.log('[ETL] Iniciando conversión a Parquet...');
-      // 9. Convertir a Parquet
-      const parquetKey = `${metaDirectory}/${metaFileId}/data.parquet`;
-      console.log('[ETL] Parquet key:', parquetKey);
-      const parquetResult = await ParquetConverter.convertToParquet(
-        csvProcessingResult.data,
-        csvProcessingResult.schema,
-        parquetKey
-      );
-      console.log('[ETL] Conversión a Parquet completada:', {
-        filePath: parquetResult.filePath,
-        fileSize: parquetResult.fileSize
-      });
-
-      logger.info('Conversión a Parquet completada', {
-        requestId,
-        parquetFilePath: parquetResult.filePath,
-        parquetSize: parquetResult.fileSize,
-        compressionRatio: parquetResult.compressionRatio
-      });
-
-      console.log('[ETL] Iniciando subida a bucket curated...');
-      // 10. Subir archivo Parquet a bucket CURATED
-      const curatedBucket = process.env.S3_BUCKET_CURATED;
-      console.log('[ETL] Curated bucket:', curatedBucket);
-      console.log('[ETL] Subiendo archivo:', parquetResult.filePath, 'a key:', parquetKey);
-      
-      const uploadResult = await S3Utils.uploadObject(curatedBucket, parquetKey, parquetResult.filePath);
-      console.log('[ETL] Archivo Parquet subido exitosamente:', uploadResult.ETag);
-
-      logger.info('Archivo Parquet subido a S3', {
-        requestId,
-        bucket: curatedBucket,
-        key: parquetKey,
-        fileId: metaFileId
-      });
-
       console.log('[ETL] Iniciando actualización de catálogo en DynamoDB...');
-      // 11. Actualizar catálogo en DynamoDB
       const catalogEntry = await CatalogService.updateCatalogEntry({
         fileId: metaFileId,
         tableName: metaTableName,
         directory: metaDirectory,
         originalFileName: objectMetadata.Metadata['original-name'],
         originalFileSize: objectMetadata.ContentLength,
-        parquetFileSize: parquetResult.fileSize,
         schema: schema.schema,
         rowCount: csvProcessingResult.rowCount,
         columnCount: csvProcessingResult.columnCount,
         s3Location: {
           rawBucket: bucketName,
-          rawKey: objectKey,
-          curatedBucket: curatedBucket,
-          curatedKey: parquetKey
+          rawKey: objectKey
         },
         processingMetadata: {
           processingTime: Date.now() - startTime,
@@ -377,17 +331,15 @@ const processFileForETL = async (params, context) => {
         }
       });
       
-      console.log('[ETL] Catálogo actualizado exitosamente en DynamoDB');
-
-      logger.info('Dataset actualizado en DynamoDB', {
+      console.log('[ETL] Catálogo actualizado exitosamente en DynamoDB');      logger.info('Dataset actualizado en DynamoDB', {
         requestId,
         fileId: metaFileId,
         tableName: metaTableName,
         status: 'processed'
       });
 
-      // 12. Limpiar archivos temporales
-      await FileUtils.cleanupTempFiles([tempCsvPath, parquetResult.filePath]);
+      // 10. Limpiar archivos temporales
+      await FileUtils.cleanupTempFiles([tempCsvPath]);
 
       const totalProcessingTime = Date.now() - startTime;
       
@@ -396,9 +348,7 @@ const processFileForETL = async (params, context) => {
         fileId: metaFileId,
         tableName: metaTableName,
         totalProcessingTime,
-        originalSize: objectMetadata.ContentLength,
-        parquetSize: parquetResult.fileSize,
-        compressionRatio: parquetResult.compressionRatio
+        originalSize: objectMetadata.ContentLength
       });
 
       return {
@@ -406,8 +356,6 @@ const processFileForETL = async (params, context) => {
         tableName: metaTableName,
         processingTime: totalProcessingTime,
         originalSize: objectMetadata.ContentLength,
-        parquetSize: parquetResult.fileSize,
-        compressionRatio: parquetResult.compressionRatio,
         rowCount: csvProcessingResult.rowCount,
         columnCount: csvProcessingResult.columnCount,
         status: 'processed'
@@ -456,7 +404,6 @@ exports.handleHealthCheck = async (event, context) => {
     // Verificar variables de entorno requeridas
     const requiredEnvVars = [
       'S3_BUCKET_RAW',
-      'S3_BUCKET_CURATED',
       'DDB_TABLE_NAME'
     ];
 
@@ -469,8 +416,7 @@ exports.handleHealthCheck = async (event, context) => {
       environment: {
         missingVars: missingVars.length > 0 ? missingVars : undefined,
         buckets: {
-          raw: process.env.S3_BUCKET_RAW,
-          curated: process.env.S3_BUCKET_CURATED
+          raw: process.env.S3_BUCKET_RAW
         },
         dynamodb: process.env.DDB_TABLE_NAME
       }

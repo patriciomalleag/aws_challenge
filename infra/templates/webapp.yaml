@@ -24,10 +24,6 @@ Parameters:
     Type: String
     Description: Nombre del bucket S3 para archivos raw
     
-  S3BucketCurated:
-    Type: String
-    Description: Nombre del bucket S3 para archivos curated
-    
   S3BucketLogs:
     Type: String
     Description: Nombre del bucket S3 para logs de la aplicación
@@ -109,7 +105,6 @@ Resources:
           # Variables de entorno para la aplicación (desde CloudFormation)
           export AWS_REGION="${AWS::Region}"
           export S3_BUCKET_RAW="${S3BucketRaw}"
-          export S3_BUCKET_CURATED="${S3BucketCurated}"
           export S3_BUCKET_LOGS="${S3BucketLogs}"
           export DDB_TABLE_NAME="${DDBTableName}"
           export LAMBDA_QUERY_FUNCTION_NAME="${LambdaQueryFunctionName}"
@@ -129,7 +124,6 @@ Resources:
           log_message "Variables de entorno configuradas:"
           log_message "  AWS_REGION: $AWS_REGION"
           log_message "  S3_BUCKET_RAW: $S3_BUCKET_RAW"
-          log_message "  S3_BUCKET_CURATED: $S3_BUCKET_CURATED"
           log_message "  S3_BUCKET_LOGS: $S3_BUCKET_LOGS"
           log_message "  DDB_TABLE_NAME: $DDB_TABLE_NAME"
           log_message "  LAMBDA_QUERY_FUNCTION_NAME: $LAMBDA_QUERY_FUNCTION_NAME"

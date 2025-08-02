@@ -1,3 +1,3 @@
 [
-{"ParameterKey":"LabRoleArn","ParameterValue":"arn:aws:iam::899325643341:role/LabRole"},{"ParameterKey":"S3BucketRaw","ParameterValue":"data-pipeline-raw-899325643341"},{"ParameterKey":"S3BucketCurated","ParameterValue":"data-pipeline-curated-899325643341"},{"ParameterKey":"S3BucketLogs","ParameterValue":"data-pipeline-logs-899325643341"},{"ParameterKey":"DDBTableName","ParameterValue":"datasets-catalog"},{"ParameterKey":"LambdaMemorySize","ParameterValue":"1024"},{"ParameterKey":"LambdaTimeout","ParameterValue":"300"}
+{"ParameterKey":"LabRoleArn","ParameterValue":"arn:aws:iam::899325643341:role/LabRole"},{"ParameterKey":"S3BucketRaw","ParameterValue":"data-pipeline-raw-899325643341"},{"ParameterKey":"S3BucketLogs","ParameterValue":"data-pipeline-logs-899325643341"},{"ParameterKey":"DDBTableName","ParameterValue":"datasets-catalog"},{"ParameterKey":"LambdaMemorySize","ParameterValue":"1024"},{"ParameterKey":"LambdaTimeout","ParameterValue":"300"}
 ]

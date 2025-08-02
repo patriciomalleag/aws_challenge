@@ -308,7 +308,6 @@ const getContentType = (objectKey) => {
   const mimeTypes = {
     '.csv': 'text/csv',
     '.json': 'application/json',
-    '.parquet': 'application/octet-stream',
     '.txt': 'text/plain',
     '.log': 'text/plain'
   };

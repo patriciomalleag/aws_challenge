@@ -10,10 +10,6 @@ Parameters:
     Type: String
     Description: Nombre del bucket S3 para archivos raw
     
-  S3BucketCurated:
-    Type: String
-    Description: Nombre del bucket S3 para archivos curated
-    
   S3BucketLogs:
     Type: String
     Description: Nombre del bucket S3 para logs de la aplicación
@@ -58,7 +54,6 @@ Resources:
       TemplateURL: https://data-pipeline-templates-899325643341.s3.us-east-1.amazonaws.com/templates/storage.yaml
       Parameters:
         S3BucketRaw: !Ref S3BucketRaw
-        S3BucketCurated: !Ref S3BucketCurated
         S3BucketLogs: !Ref S3BucketLogs
         DDBTableName: !Ref DDBTableName
         LabRoleArn: !Ref LabRoleArn
@@ -81,7 +76,6 @@ Resources:
         LambdaMemorySize: !Ref LambdaMemorySize
         LambdaTimeout: !Ref LambdaTimeout
         S3BucketRawName: !GetAtt StorageStack.Outputs.S3BucketRawName
-        S3BucketCuratedName: !GetAtt StorageStack.Outputs.S3BucketCuratedName
         DynamoDBTableName: !GetAtt StorageStack.Outputs.DynamoDBTableName
       Tags:
         - Key: Name
@@ -103,7 +97,6 @@ Resources:
         PublicSubnetId: !GetAtt NetworkStack.Outputs.PublicSubnetId
         InstanceType: t3.small
         S3BucketRaw: !GetAtt StorageStack.Outputs.S3BucketRawName
-        S3BucketCurated: !GetAtt StorageStack.Outputs.S3BucketCuratedName
         S3BucketLogs: !GetAtt StorageStack.Outputs.S3BucketLogsName
         DDBTableName: !GetAtt StorageStack.Outputs.DynamoDBTableName
         LambdaQueryFunctionName: !GetAtt LambdaStack.Outputs.LambdaQueryFunctionName
@@ -134,12 +127,6 @@ Outputs:
     Value: !GetAtt StorageStack.Outputs.S3BucketRawName
     Export:
       Name: !Sub ${AWS::StackName}-S3-Raw-Bucket
-
-  S3BucketCuratedName:
-    Description: Nombre del bucket S3 para archivos curated
-    Value: !GetAtt StorageStack.Outputs.S3BucketCuratedName
-    Export:
-      Name: !Sub ${AWS::StackName}-S3-Curated-Bucket
 
   S3BucketLogsName:
     Description: Nombre del bucket S3 para logs
