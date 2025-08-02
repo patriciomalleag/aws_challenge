@@ -146,6 +146,87 @@ update_parameters() {
     log_success "Parámetros actualizados con valores dinámicos"
 }
 
+# Función para empaquetar y subir código Lambda a S3
+package_and_upload_lambda_code() {
+    log_info "Empaquetando y subiendo código Lambda..."
+    
+    # Obtener Account ID y crear nombres de bucket
+    ACCOUNT_ID=$(get_account_id)
+    LAMBDA_CODE_BUCKET="$ACCOUNT_ID-lambda-code-$REGION"
+    
+    # Crear bucket para código Lambda si no existe
+    if ! aws s3 ls "s3://$LAMBDA_CODE_BUCKET" >/dev/null 2>&1; then
+        log_info "Creando bucket para código Lambda: $LAMBDA_CODE_BUCKET"
+        aws s3 mb "s3://$LAMBDA_CODE_BUCKET" --region $REGION
+        aws s3api put-bucket-encryption \
+            --bucket "$LAMBDA_CODE_BUCKET" \
+            --server-side-encryption-configuration '{
+                "Rules": [
+                    {
+                        "ApplyServerSideEncryptionByDefault": {
+                            "SSEAlgorithm": "AES256"
+                        }
+                    }
+                ]
+            }'
+    fi
+    
+    # Directorio temporal para empaquetado
+    TEMP_DIR=$(mktemp -d)
+    
+    # Empaquetar lambda-etl
+    log_info "📦 Empaquetando lambda-etl..."
+    cd ../lambda-etl
+    
+    # Instalar dependencias si no existen
+    if [[ ! -d "node_modules" ]]; then
+        log_info "Instalando dependencias de lambda-etl..."
+        npm install --production
+    fi
+    
+    # Crear ZIP incluyendo shared
+    zip -r "$TEMP_DIR/lambda-etl.zip" \
+        src/ \
+        package.json \
+        node_modules/ \
+        ../shared/ \
+        -x "*/test/*" "*/tests/*" "*/.git/*" "*/.*"
+    
+    # Subir ZIP a S3
+    aws s3 cp "$TEMP_DIR/lambda-etl.zip" "s3://$LAMBDA_CODE_BUCKET/lambda-etl.zip"
+    log_success "lambda-etl.zip subido exitosamente"
+    
+    # Empaquetar lambda-query
+    log_info "📦 Empaquetando lambda-query..."
+    cd ../lambda-query
+    
+    # Instalar dependencias si no existen
+    if [[ ! -d "node_modules" ]]; then
+        log_info "Instalando dependencias de lambda-query..."
+        npm install --production
+    fi
+    
+    # Crear ZIP incluyendo shared
+    zip -r "$TEMP_DIR/lambda-query.zip" \
+        src/ \
+        package.json \
+        node_modules/ \
+        ../shared/ \
+        -x "*/test/*" "*/tests/*" "*/.git/*" "*/.*"
+    
+    # Subir ZIP a S3
+    aws s3 cp "$TEMP_DIR/lambda-query.zip" "s3://$LAMBDA_CODE_BUCKET/lambda-query.zip"
+    log_success "lambda-query.zip subido exitosamente"
+    
+    # Volver al directorio de infra
+    cd ../infra
+    
+    # Limpiar archivos temporales
+    rm -rf "$TEMP_DIR"
+    
+    log_success "Código Lambda empaquetado y subido exitosamente"
+}
+
 # Función para subir templates a S3
 upload_templates_to_s3() {
     log_info "Subiendo templates a S3..."
@@ -384,6 +465,7 @@ main() {
     validate_prerequisites
     update_parameters
     validate_template
+    package_and_upload_lambda_code
     upload_templates_to_s3
     deploy_stack
     show_outputs
