@@ -62,25 +62,50 @@ app.get('/health', (req, res) => {
 // Obtener archivos existentes
 app.get('/api/files', async (req, res) => {
   try {
+    console.log('[INFO] Iniciando petición GET /api/files');
+    console.log('[DEBUG] Usando tabla DynamoDB:', DDB_TABLE);
+    
     const params = {
       TableName: DDB_TABLE,
-      ProjectionExpression: 'tableName, fileName, directory, status, createdAt, description'
+      ProjectionExpression: 'tableName, fileName, directory, #st, createdAt, description',
+      ExpressionAttributeNames: {
+        '#st': 'status'
+      }
     };
+    
+    console.log('[DEBUG] Parámetros para scan de DynamoDB:', JSON.stringify(params));
 
     const result = await dynamodb.scan(params).promise();
+    console.log('[INFO] Scan de DynamoDB completado, items encontrados:', result.Items ? result.Items.length : 0);
     
-    const files = result.Items.map(item => ({
-      name: item.fileName,
-      directory: item.directory,
-      tableName: item.tableName,
-      status: item.status || 'pending',
-      createdAt: item.createdAt,
-      description: item.description
-    }));
+    if (!result.Items || result.Items.length === 0) {
+      console.log('[INFO] No se encontraron archivos en la tabla');
+    }
+    
+    const files = result.Items.map(item => {
+      console.log('[DEBUG] Procesando item:', JSON.stringify(item));
+      return {
+        name: item.fileName,
+        directory: item.directory,
+        tableName: item.tableName,
+        status: item.status || 'pending',
+        createdAt: item.createdAt,
+        description: item.description
+      };
+    });
 
+    console.log('[INFO] Enviando respuesta con', files.length, 'archivos');
     res.json(files);
   } catch (error) {
-    console.error('Error fetching files:', error);
+    console.error('[ERROR] Error al obtener archivos:', error);
+    console.error('[ERROR] Stack trace:', error.stack);
+    console.error('[ERROR] Detalles adicionales:', JSON.stringify({
+      errorName: error.name,
+      errorCode: error.code,
+      errorMessage: error.message,
+      statusCode: error.statusCode,
+      requestId: error.requestId
+    }));
     res.status(500).json({ error: 'Error al obtener archivos' });
   }
 });
@@ -88,12 +113,24 @@ app.get('/api/files', async (req, res) => {
 // Subir archivo CSV
 app.post('/api/upload', upload.single('file'), async (req, res) => {
   try {
+    console.log('[INFO] Iniciando subida de archivo CSV');
+    
     if (!req.file) {
+      console.log('[ERROR] No se proporcionó archivo en la solicitud');
       return res.status(400).json({ error: 'No se proporcionó archivo' });
     }
+    
+    console.log('[DEBUG] Archivo recibido:', {
+      filename: req.file.originalname,
+      size: req.file.size,
+      mimetype: req.file.mimetype
+    });
 
     const config = JSON.parse(req.body.config);
     const schema = JSON.parse(req.body.schema);
+    
+    console.log('[DEBUG] Configuración:', JSON.stringify(config));
+    console.log('[DEBUG] Esquema:', JSON.stringify(schema, null, 2));
 
     // Validar configuración
     if (!config.tableName || !config.directory) {
@@ -115,8 +152,16 @@ app.post('/api/upload', upload.single('file'), async (req, res) => {
     const fileName = req.file.originalname;
     const s3Key = `${config.directory}/${fileId}/${fileName}`;
     const schemaKey = `${config.directory}/${fileId}/schema.json`;
+    
+    console.log('[INFO] ID generado para el archivo:', fileId);
+    console.log('[DEBUG] Rutas de almacenamiento:', {
+      s3Key: s3Key,
+      schemaKey: schemaKey,
+      bucket: RAW_BUCKET
+    });
 
     // Subir archivo CSV al bucket RAW
+    console.log('[INFO] Preparando para subir CSV a S3');
     const uploadParams = {
       Bucket: RAW_BUCKET,
       Key: s3Key,
@@ -131,9 +176,12 @@ app.post('/api/upload', upload.single('file'), async (req, res) => {
       }
     };
 
+    console.log('[INFO] Subiendo archivo CSV a S3');
     await s3.upload(uploadParams).promise();
+    console.log('[INFO] Archivo CSV subido exitosamente a S3');
 
     // Subir esquema JSON al bucket RAW
+    console.log('[INFO] Preparando para subir esquema JSON a S3');
     const schemaParams = {
       Bucket: RAW_BUCKET,
       Key: schemaKey,
@@ -154,8 +202,10 @@ app.post('/api/upload', upload.single('file'), async (req, res) => {
     };
 
     await s3.upload(schemaParams).promise();
+    console.log('[INFO] Esquema JSON subido exitosamente a S3');
 
     // Guardar metadatos en DynamoDB
+    console.log('[INFO] Guardando metadatos en DynamoDB');
     const ddbParams = {
       TableName: DDB_TABLE,
       Item: {
@@ -174,11 +224,21 @@ app.post('/api/upload', upload.single('file'), async (req, res) => {
         fileSize: req.file.size
       }
     };
+    
+    console.log('[DEBUG] Parámetros para DynamoDB:', JSON.stringify({
+      tabla: DDB_TABLE,
+      fileId: fileId,
+      tableName: config.tableName
+    }));
 
     await dynamodb.put(ddbParams).promise();
+    console.log('[INFO] Metadatos guardados exitosamente en DynamoDB');
 
     // Invocar Lambda ETL para procesar el archivo
     try {
+      console.log('[INFO] Invocando Lambda ETL para procesar el archivo');
+      console.log('[DEBUG] Nombre de la función Lambda:', LAMBDA_ETL_FUNCTION_NAME);
+      
       const lambdaParams = {
         FunctionName: LAMBDA_ETL_FUNCTION_NAME,
         InvocationType: 'RequestResponse',
@@ -202,16 +262,20 @@ app.post('/api/upload', upload.single('file'), async (req, res) => {
       const lambdaResponse = await lambda.invoke(lambdaParams).promise();
 
       if (lambdaResponse.StatusCode !== 200) {
+        console.error('[ERROR] Función Lambda devolvió código de estado no exitoso:', lambdaResponse.StatusCode);
         throw new Error('Error en la función Lambda ETL');
       }
 
+      console.log('[DEBUG] Respuesta Lambda obtenida, analizando payload');
       const responsePayload = JSON.parse(lambdaResponse.Payload);
       
       if (responsePayload.statusCode >= 400) {
         const errorBody = JSON.parse(responsePayload.body);
-        console.error('Error en Lambda ETL:', errorBody.error);
+        console.error('[ERROR] Error en Lambda ETL:', errorBody.error);
+        console.error('[DEBUG] Detalles completos de error Lambda:', JSON.stringify(errorBody));
         
         // No fallar la respuesta completa, pero registrar el error
+        console.log('[INFO] Devolviendo respuesta parcial con información de error ETL');
         res.json({
           success: true,
           fileId: fileId,
@@ -223,33 +287,55 @@ app.post('/api/upload', upload.single('file'), async (req, res) => {
         return;
       }
 
+      console.log('[DEBUG] Lambda ETL ejecutado exitosamente, procesando resultado');
       const etlResult = JSON.parse(responsePayload.body);
+      console.log('[DEBUG] Resultado ETL:', JSON.stringify(etlResult, null, 2));
       
+      console.log('[INFO] Archivo procesado correctamente, enviando respuesta');
       res.json({
         success: true,
         fileId: fileId,
         message: 'Archivo subido y procesado correctamente',
         s3Key: s3Key,
         schemaKey: schemaKey,
-        etlResult: etlResult.data
+        etlResult: etlResult
       });
 
-    } catch (etlError) {
-      console.error('Error invocando Lambda ETL:', etlError);
+    } catch (lambdaError) {
+      console.error('[ERROR] Error al invocar Lambda ETL:', lambdaError);
+      console.error('[ERROR] Stack trace:', lambdaError.stack);
+      console.error('[ERROR] Detalles adicionales:', JSON.stringify({
+        lambdaFunction: LAMBDA_ETL_FUNCTION_NAME,
+        fileId: fileId,
+        s3Key: s3Key,
+        errorName: lambdaError.name,
+        errorCode: lambdaError.code || 'UNKNOWN'
+      }));
       
-      // No fallar la respuesta completa, el archivo ya fue subido exitosamente
+      // No fallar la respuesta completa, pero registrar el error
+      console.log('[INFO] Devolviendo respuesta parcial con información de error Lambda');
       res.json({
         success: true,
         fileId: fileId,
         message: 'Archivo subido correctamente, pero falló el procesamiento ETL',
         s3Key: s3Key,
         schemaKey: schemaKey,
-        etlError: etlError.message
+        etlError: lambdaError.message
       });
     }
-
+    
   } catch (error) {
-    console.error('Error uploading file:', error);
+    console.error('[ERROR] Error general al subir archivo:', error);
+    console.error('[ERROR] Stack trace:', error.stack);
+    console.error('[ERROR] Detalles adicionales:', JSON.stringify({
+      errorName: error.name,
+      errorCode: error.code || 'UNKNOWN',
+      errorMessage: error.message,
+      fileInfo: req.file ? {
+        filename: req.file.originalname,
+        size: req.file.size
+      } : 'No file info'
+    }));
     res.status(500).json({ error: 'Error al subir archivo' });
   }
 });
@@ -257,6 +343,7 @@ app.post('/api/upload', upload.single('file'), async (req, res) => {
 // Obtener detalles de un archivo específico
 app.get('/api/files/:fileId', async (req, res) => {
   try {
+    console.log('[INFO] Obteniendo detalles del archivo con ID:', req.params.fileId);
     const { fileId } = req.params;
 
     const params = {
@@ -265,8 +352,13 @@ app.get('/api/files/:fileId', async (req, res) => {
         fileId: fileId
       }
     };
-
+    
+    console.log('[DEBUG] Parámetros para consulta DynamoDB:', JSON.stringify(params));
     const result = await dynamodb.get(params).promise();
+    console.log('[DEBUG] Resultado de DynamoDB:', JSON.stringify({
+      found: !!result.Item,
+      itemKeys: result.Item ? Object.keys(result.Item) : []
+    }));
     
     if (!result.Item) {
       return res.status(404).json({ error: 'Archivo no encontrado' });
@@ -369,7 +461,18 @@ app.post('/api/query', async (req, res) => {
     res.json(resultBody);
 
   } catch (error) {
-    console.error('Error executing query:', error);
+    console.error('[ERROR] Error executing query:', error);
+    console.error('[ERROR] Stack trace:', error.stack);
+    console.error('[ERROR] Detalles adicionales:', JSON.stringify({
+      errorName: error.name,
+      errorCode: error.code,
+      errorMessage: error.message,
+      requestDetails: {
+        tableId: req.params.tableId,
+        queryType: req.body.queryType,
+        functionName: LAMBDA_QUERY_FUNCTION_NAME
+      }
+    }));
     res.status(500).json({ error: 'Error al ejecutar la consulta' });
   }
 });
@@ -389,14 +492,43 @@ app.use((error, req, res, next) => {
 
 // 404 handler
 app.use((req, res) => {
+  console.log('[INFO] 404 - Endpoint no encontrado:', req.method, req.url);
   res.status(404).json({ error: 'Endpoint no encontrado' });
+});
+
+// Manejador de errores global
+app.use((err, req, res, next) => {
+  console.error('[ERROR] Error no capturado:', err);
+  console.error('[ERROR] Stack trace:', err.stack);
+  console.error('[ERROR] Detalles de la petición:', {
+    method: req.method,
+    url: req.url,
+    body: req.body,
+    params: req.params,
+    query: req.query
+  });
+  
+  res.status(500).json({ 
+    error: 'Error interno del servidor',
+    message: err.message 
+  });
 });
 
 // Iniciar servidor
 app.listen(PORT, () => {
-  console.log(`Servidor corriendo en puerto ${PORT}`);
-  console.log(`Health check: http://localhost:${PORT}/health`);
-  console.log(`API docs: http://localhost:${PORT}/api`);
+  console.log('=================================================');
+  console.log(`🚀 Servidor backend iniciado en puerto ${PORT}`);
+  console.log(`🏥 Health check: http://localhost:${PORT}/health`);
+  console.log(`📚 API docs: http://localhost:${PORT}/api`);
+  console.log('=================================================');
+  console.log('Configuración:');
+  console.log(`- Región AWS: ${process.env.AWS_REGION || 'us-east-1'}`);
+  console.log(`- Bucket Raw: ${RAW_BUCKET}`);
+  console.log(`- Bucket Curated: ${CURATED_BUCKET}`);
+  console.log(`- Tabla DynamoDB: ${DDB_TABLE}`);
+  console.log(`- Lambda ETL: ${LAMBDA_ETL_FUNCTION_NAME}`);
+  console.log(`- Lambda Query: ${LAMBDA_QUERY_FUNCTION_NAME}`);
+  console.log('=================================================');
 });
 
 module.exports = app; 

@@ -25,19 +25,69 @@ function Ingestor() {
 
   const loadExistingFiles = async () => {
     try {
+      console.log('[FRONTEND] Iniciando carga de archivos existentes...');
+      console.log('[FRONTEND] Haciendo petición GET a /api/files');
+      
       const response = await axios.get('/api/files');
+      
+      console.log('[FRONTEND] Respuesta recibida:', {
+        status: response.status,
+        statusText: response.statusText,
+        dataLength: response.data ? response.data.length : 0,
+        data: response.data
+      });
+      
       setFiles(response.data);
+      console.log('[FRONTEND] Archivos cargados exitosamente:', response.data.length, 'archivos');
     } catch (error) {
-      console.error('Error loading files:', error);
-      toast.error('Error al cargar archivos existentes');
+      console.error('[FRONTEND] Error al cargar archivos existentes:', error);
+      console.error('[FRONTEND] Detalles del error:', {
+        message: error.message,
+        status: error.response?.status,
+        statusText: error.response?.statusText,
+        data: error.response?.data,
+        config: {
+          url: error.config?.url,
+          method: error.config?.method,
+          baseURL: error.config?.baseURL
+        }
+      });
+      
+      if (error.response) {
+        console.error('[FRONTEND] Error de respuesta del servidor:', {
+          status: error.response.status,
+          data: error.response.data,
+          headers: error.response.headers
+        });
+        toast.error(`Error del servidor: ${error.response.data?.error || error.response.statusText}`);
+      } else if (error.request) {
+        console.error('[FRONTEND] Error de red - no se recibió respuesta:', error.request);
+        toast.error('Error de conexión con el servidor');
+      } else {
+        console.error('[FRONTEND] Error al configurar la petición:', error.message);
+        toast.error('Error al cargar archivos existentes');
+      }
     }
   };
 
   const onDrop = async (acceptedFiles) => {
-    if (acceptedFiles.length === 0) return;
+    console.log('[FRONTEND] onDrop iniciado:', acceptedFiles.length, 'archivos');
+    
+    if (acceptedFiles.length === 0) {
+      console.log('[FRONTEND] No se seleccionaron archivos');
+      return;
+    }
 
     const file = acceptedFiles[0];
+    console.log('[FRONTEND] Archivo seleccionado:', {
+      name: file.name,
+      size: file.size,
+      type: file.type,
+      lastModified: file.lastModified
+    });
+    
     if (!file.name.toLowerCase().endsWith('.csv')) {
+      console.error('[FRONTEND] Archivo no es CSV:', file.name);
       toast.error('Solo se permiten archivos CSV');
       return;
     }
@@ -46,34 +96,56 @@ function Ingestor() {
     setIsAnalyzing(true);
 
     try {
+      console.log('[FRONTEND] Leyendo contenido del archivo...');
       // Leer y analizar el archivo CSV
       const text = await file.text();
+      console.log('[FRONTEND] Archivo leído, tamaño del texto:', text.length, 'caracteres');
+      
+      console.log('[FRONTEND] Iniciando parsing con Papa Parse...');
       const result = Papa.parse(text, {
         header: true,
         preview: 100, // Solo las primeras 100 filas para análisis
         skipEmptyLines: true
       });
 
+      console.log('[FRONTEND] Resultado del parsing:', {
+        dataRows: result.data.length,
+        errors: result.errors.length,
+        meta: result.meta
+      });
+
       if (result.errors.length > 0) {
+        console.error('[FRONTEND] Errores en el parsing:', result.errors);
         toast.error('Error al parsear el archivo CSV');
         return;
       }
 
+      console.log('[FRONTEND] Generando esquema automático...');
       // Generar esquema automático
       const autoSchema = generateSchema(result.data);
+      console.log('[FRONTEND] Esquema generado:', autoSchema);
       setSchema(autoSchema);
 
       // Sugerir nombre de tabla basado en el nombre del archivo
       const suggestedName = file.name.replace('.csv', '').replace(/[^a-zA-Z0-9]/g, '_');
+      console.log('[FRONTEND] Nombre de tabla sugerido:', suggestedName);
+      
       setUploadConfig(prev => ({
         ...prev,
         tableName: suggestedName,
         directory: 'datasets'
       }));
 
+      console.log('[FRONTEND] Análisis de archivo completado exitosamente');
       toast.success('Archivo analizado correctamente');
     } catch (error) {
-      console.error('Error analyzing file:', error);
+      console.error('[FRONTEND] Error al analizar archivo:', error);
+      console.error('[FRONTEND] Detalles del error:', {
+        message: error.message,
+        stack: error.stack,
+        fileName: file?.name,
+        fileSize: file?.size
+      });
       toast.error('Error al analizar el archivo');
     } finally {
       setIsAnalyzing(false);
@@ -146,39 +218,66 @@ function Ingestor() {
   };
 
   const handleUpload = async () => {
+    console.log('[FRONTEND] Iniciando proceso de upload...');
+    
     if (!currentFile) {
+      console.error('[FRONTEND] No hay archivo seleccionado');
       toast.error('No hay archivo seleccionado');
       return;
     }
 
     if (!uploadConfig.tableName || !uploadConfig.directory) {
+      console.error('[FRONTEND] Configuración incompleta:', uploadConfig);
       toast.error('Completa el nombre de la tabla y directorio');
       return;
     }
 
     if (schema.length === 0) {
+      console.error('[FRONTEND] Esquema vacío');
       toast.error('Define al menos un campo en el esquema');
       return;
     }
+
+    console.log('[FRONTEND] Validaciones pasadas, preparando upload:', {
+      fileName: currentFile.name,
+      fileSize: currentFile.size,
+      config: uploadConfig,
+      schemaFields: schema.length
+    });
 
     setIsUploading(true);
 
     try {
       // Crear FormData con el archivo y metadatos
+      console.log('[FRONTEND] Creando FormData...');
       const formData = new FormData();
       formData.append('file', currentFile);
       formData.append('config', JSON.stringify(uploadConfig));
       formData.append('schema', JSON.stringify(schema));
+      
+      console.log('[FRONTEND] FormData creado:', {
+        hasFile: formData.has('file'),
+        hasConfig: formData.has('config'),
+        hasSchema: formData.has('schema')
+      });
 
+      console.log('[FRONTEND] Enviando petición POST a /api/upload...');
       const response = await axios.post('/api/upload', formData, {
         headers: {
           'Content-Type': 'multipart/form-data'
         }
       });
 
+      console.log('[FRONTEND] Respuesta del upload recibida:', {
+        status: response.status,
+        statusText: response.statusText,
+        data: response.data
+      });
+
       toast.success('Archivo subido correctamente');
       
       // Limpiar formulario
+      console.log('[FRONTEND] Limpiando formulario...');
       setCurrentFile(null);
       setSchema([]);
       setUploadConfig({
@@ -189,11 +288,38 @@ function Ingestor() {
       });
 
       // Recargar archivos
+      console.log('[FRONTEND] Recargando lista de archivos...');
       loadExistingFiles();
     } catch (error) {
-      console.error('Error uploading file:', error);
-      toast.error('Error al subir el archivo');
+      console.error('[FRONTEND] Error en upload:', error);
+      console.error('[FRONTEND] Detalles del error de upload:', {
+        message: error.message,
+        status: error.response?.status,
+        statusText: error.response?.statusText,
+        data: error.response?.data,
+        config: {
+          url: error.config?.url,
+          method: error.config?.method,
+          headers: error.config?.headers
+        }
+      });
+      
+      if (error.response) {
+        console.error('[FRONTEND] Error de respuesta del servidor en upload:', {
+          status: error.response.status,
+          data: error.response.data,
+          headers: error.response.headers
+        });
+        toast.error(`Error del servidor: ${error.response.data?.error || error.response.statusText}`);
+      } else if (error.request) {
+        console.error('[FRONTEND] Error de red en upload - no se recibió respuesta:', error.request);
+        toast.error('Error de conexión con el servidor');
+      } else {
+        console.error('[FRONTEND] Error al configurar la petición de upload:', error.message);
+        toast.error('Error al subir el archivo');
+      }
     } finally {
+      console.log('[FRONTEND] Finalizando proceso de upload');
       setIsUploading(false);
     }
   };

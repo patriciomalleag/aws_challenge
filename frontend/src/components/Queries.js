@@ -18,10 +18,20 @@ function Queries() {
 
   const loadTables = async () => {
     try {
+      console.log('[FRONTEND-QUERIES] Iniciando carga de tablas...');
       setIsLoadingTables(true);
+      
+      console.log('[FRONTEND-QUERIES] Haciendo petición GET a /api/files');
       const response = await axios.get('/api/files');
       
+      console.log('[FRONTEND-QUERIES] Respuesta recibida:', {
+        status: response.status,
+        dataLength: response.data ? response.data.length : 0,
+        data: response.data
+      });
+      
       // Agrupar archivos por tabla
+      console.log('[FRONTEND-QUERIES] Agrupando archivos por tabla...');
       const tableGroups = {};
       response.data.forEach(file => {
         if (!tableGroups[file.tableName]) {
@@ -41,57 +51,115 @@ function Queries() {
         lastUpdated: new Date(table.lastUpdated).toLocaleDateString('es-ES')
       }));
 
+      console.log('[FRONTEND-QUERIES] Tablas procesadas:', tablesList.length, 'tablas encontradas');
       setTables(tablesList);
     } catch (error) {
-      console.error('Error loading tables:', error);
-      toast.error('Error al cargar las tablas');
+      console.error('[FRONTEND-QUERIES] Error al cargar tablas:', error);
+      console.error('[FRONTEND-QUERIES] Detalles del error:', {
+        message: error.message,
+        status: error.response?.status,
+        statusText: error.response?.statusText,
+        data: error.response?.data,
+        config: error.config
+      });
+      
+      const errorMessage = error.response?.data?.error || 'Error al cargar las tablas';
+      toast.error(errorMessage);
+      
+      // Mostrar más detalles en consola para debugging
+      if (error.response?.status === 500) {
+        console.error('[FRONTEND-QUERIES] Error 500 - posible problema en el backend. Revisar logs del servidor.');
+      }
     } finally {
       setIsLoadingTables(false);
     }
   };
 
   const handleTableSelect = async (table) => {
+    console.log('[FRONTEND-QUERIES] Seleccionando tabla:', table.name);
     setSelectedTable(table);
     
     // Generar query de ejemplo
     const exampleQuery = `SELECT * FROM "${table.name}" LIMIT 10`;
     setQuery(exampleQuery);
+    console.log('[FRONTEND-QUERIES] Query de ejemplo generada:', exampleQuery);
     
     // Cargar esquema de la tabla
     try {
+      console.log('[FRONTEND-QUERIES] Cargando esquema para tabla:', table.name);
       const response = await axios.get(`/api/schema/${table.name}`);
+      
+      console.log('[FRONTEND-QUERIES] Esquema recibido:', {
+        status: response.status,
+        hasSchema: !!response.data.schema,
+        columns: response.data.schema ? response.data.schema.length : 0
+      });
+      
       setSelectedTable({
         ...table,
         schema: response.data.schema
       });
     } catch (error) {
-      console.error('Error loading schema:', error);
+      console.error('[FRONTEND-QUERIES] Error cargando esquema:', error);
+      console.error('[FRONTEND-QUERIES] Detalles del error del esquema:', {
+        message: error.message,
+        status: error.response?.status,
+        statusText: error.response?.statusText,
+        data: error.response?.data,
+        tableName: table.name
+      });
       toast.warning('No se pudo cargar el esquema de la tabla');
     }
   };
 
   const executeQuery = async () => {
+    console.log('[FRONTEND-QUERIES] Iniciando ejecución de consulta...');
+    
     if (!query.trim()) {
+      console.error('[FRONTEND-QUERIES] Consulta vacía');
       toast.error('Por favor ingresa una consulta SQL');
       return;
     }
 
     if (!selectedTable?.name) {
+      console.error('[FRONTEND-QUERIES] No hay tabla seleccionada');
       toast.error('Por favor selecciona una tabla primero');
       return;
     }
 
+    console.log('[FRONTEND-QUERIES] Validaciones pasadas, ejecutando consulta:', {
+      query: query.trim(),
+      tableName: selectedTable.name
+    });
+
     setIsLoading(true);
     try {
+      console.log('[FRONTEND-QUERIES] Enviando petición POST a /api/query...');
       const response = await axios.post('/api/query', {
         query: query.trim(),
         tableName: selectedTable.name
       });
 
+      console.log('[FRONTEND-QUERIES] Respuesta de consulta recibida:', {
+        status: response.status,
+        dataKeys: response.data ? Object.keys(response.data) : [],
+        hasResults: !!response.data.results,
+        resultsLength: response.data.results ? response.data.results.length : 0
+      });
+
       setResults(response.data);
       toast.success('Consulta ejecutada correctamente');
     } catch (error) {
-      console.error('Error executing query:', error);
+      console.error('[FRONTEND-QUERIES] Error ejecutando consulta:', error);
+      console.error('[FRONTEND-QUERIES] Detalles del error:', {
+        message: error.message,
+        status: error.response?.status,
+        statusText: error.response?.statusText,
+        data: error.response?.data,
+        query: query.trim(),
+        tableName: selectedTable.name
+      });
+      
       const errorMessage = error.response?.data?.error || 'Error al ejecutar la consulta';
       toast.error(errorMessage);
       setResults({ error: errorMessage });
