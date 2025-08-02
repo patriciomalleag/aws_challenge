@@ -152,19 +152,55 @@ function Ingestor() {
     }
   };
 
+  const cleanColumnName = (columnName) => {
+    if (!columnName) return '';
+    
+    let cleaned = columnName
+      // Convertir a minúsculas
+      .toLowerCase()
+      // Eliminar caracteres especiales y espacios
+      .replace(/[^a-z0-9]/g, '_')
+      // Eliminar múltiples guiones bajos consecutivos
+      .replace(/_+/g, '_')
+      // Eliminar guiones bajos al inicio y final
+      .replace(/^_+|_+$/g, '')
+      // Asegurar que no esté vacío
+      || 'column';
+    
+    // Si comienza con un número, agregar 'c_' al principio
+    if (/^[0-9]/.test(cleaned)) {
+      cleaned = 'c_' + cleaned;
+    }
+    
+    return cleaned;
+  };
+
   const generateSchema = (data) => {
     if (data.length === 0) return [];
 
     const sampleRow = data[0];
     const schema = [];
+    const usedNames = new Set();
 
     for (const [key, value] of Object.entries(sampleRow)) {
       const type = inferDataType(value, data.map(row => row[key]));
+      let cleanName = cleanColumnName(key);
+      
+      // Evitar nombres duplicados
+      let finalName = cleanName;
+      let counter = 1;
+      while (usedNames.has(finalName)) {
+        finalName = `${cleanName}_${counter}`;
+        counter++;
+      }
+      usedNames.add(finalName);
+      
       schema.push({
-        name: key,
+        name: finalName,
+        originalName: key, // Mantener el nombre original para referencia
         type: type,
         nullable: true,
-        description: ''
+        description: `Campo derivado de "${key}"`
       });
     }
 
@@ -343,7 +379,7 @@ function Ingestor() {
         <div className="header-content">
           <h1 className="ingestor-title">
             <FaCloudUploadAlt className="title-icon" />
-            Ingestor de Datos
+            Carga de Datos
           </h1>
           <p className="ingestor-subtitle">
             Sube, configura y procesa tus archivos CSV de manera inteligente
@@ -402,13 +438,7 @@ function Ingestor() {
                   <div className="file-icon">
                     <FaTable />
                   </div>
-                  <div className="file-status">
-                    {file.status === 'completed' ? (
-                      <FaCheckCircle className="status-icon success" />
-                    ) : (
-                      <FaClock className="status-icon pending" />
-                    )}
-                  </div>
+
                 </div>
                 
                 <div className="file-content">
@@ -421,12 +451,6 @@ function Ingestor() {
                     <div className="detail-item">
                       <span className="detail-label">Directorio:</span>
                       <span className="detail-value">{file.directory}</span>
-                    </div>
-                    <div className="detail-item">
-                      <span className="detail-label">Estado:</span>
-                      <span className={`status-badge ${file.status === 'completed' ? 'success' : 'pending'}`}>
-                        {file.status === 'completed' ? 'Completado' : 'Procesando'}
-                      </span>
                     </div>
                   </div>
                 </div>
@@ -599,7 +623,13 @@ function Ingestor() {
                       placeholder="Nombre del campo"
                       value={field.name}
                       onChange={(e) => updateSchemaField(index, 'name', e.target.value)}
+                      title={field.originalName ? `Original: "${field.originalName}"` : ''}
                     />
+                    {field.originalName && field.originalName !== field.name && (
+                      <small className="original-name-hint">
+                        Original: "{field.originalName}"
+                      </small>
+                    )}
                   </div>
                   
                   <div className="field-col">

@@ -23,7 +23,7 @@ function App() {
                 Inicio
               </Link>
               <Link className="nav-link" to="/ingestor">
-                Ingestor
+                Carga de Datos
               </Link>
               <Link className="nav-link" to="/queries">
                 Consultas

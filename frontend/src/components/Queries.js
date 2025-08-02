@@ -10,6 +10,7 @@ function Queries() {
   const [results, setResults] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingTables, setIsLoadingTables] = useState(true);
+  const [showSchemaModal, setShowSchemaModal] = useState(false);
 
   // Cargar tablas al montar el componente
   useEffect(() => {
@@ -83,6 +84,9 @@ function Queries() {
     const exampleQuery = `SELECT * FROM "${table.name}" LIMIT 10`;
     setQuery(exampleQuery);
     console.log('[FRONTEND-QUERIES] Query de ejemplo generada:', exampleQuery);
+    
+    // Mostrar modal de esquema inmediatamente
+    setShowSchemaModal(true);
     
     // Cargar esquema de la tabla
     try {
@@ -256,7 +260,7 @@ function Queries() {
                 <div className="empty-tables-state">
                   <FaDatabase className="empty-icon" />
                   <h4>No hay datasets</h4>
-                  <p>Sube archivos desde el Ingestor para comenzar</p>
+                  <p>Sube archivos desde Carga de Datos para comenzar</p>
                 </div>
               ) : (
                 <div className="tables-list">
@@ -271,13 +275,7 @@ function Queries() {
                         <div className="table-card-icon">
                           <FaTable />
                         </div>
-                        <div className="table-card-status">
-                          {table.recordCount > 0 ? (
-                            <div className="status-dot ready"></div>
-                          ) : (
-                            <div className="status-dot processing"></div>
-                          )}
-                        </div>
+
                       </div>
                       
                       <div className="table-card-content">
@@ -478,45 +476,73 @@ function Queries() {
         </div>
       </div>
 
-      {/* Schema Panel - Solo se muestra si hay esquema */}
-      {selectedTable && selectedTable.schema && (
-        <div className="schema-panel animate-slideIn">
-          <div className="panel-card">
-            <div className="panel-header">
-              <h3 className="panel-title">
-                <FaColumns className="panel-icon" />
+      {/* Modal de Esquema */}
+      {showSchemaModal && selectedTable && (
+        <div className="modal-overlay" onClick={() => setShowSchemaModal(false)}>
+          <div className="schema-modal animate-slideIn" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3 className="modal-title">
+                <FaColumns className="modal-icon" />
                 Esquema: {selectedTable.name}
               </h3>
-              <div className="schema-stats">
-                <span className="schema-stat">
-                  {selectedTable.schema.length} columnas
-                </span>
-              </div>
+              <button 
+                className="modal-close-btn"
+                onClick={() => setShowSchemaModal(false)}
+                title="Cerrar"
+              >
+                ×
+              </button>
             </div>
             
-            <div className="schema-content">
-              <div className="schema-grid">
-                {selectedTable.schema.map((column, index) => (
-                  <div key={index} className="schema-column-card">
-                    <div className="column-header">
-                      <div className="column-name">{column.name}</div>
-                      <div className="column-badges">
-                        <span className={`type-badge ${column.type.toLowerCase()}`}>
-                          {formatColumnType(column.type)}
-                        </span>
-                        {column.nullable && (
-                          <span className="nullable-badge">NULL</span>
-                        )}
+            <div className="modal-content">
+              {selectedTable.schema ? (
+                <div className="schema-grid">
+                  {selectedTable.schema.map((column, index) => (
+                    <div key={index} className="column-item animate-slideIn" style={{ animationDelay: `${index * 0.05}s` }}>
+                      <div className="column-header">
+                        <div className="column-name">{column.name}</div>
+                        <div className="column-badges">
+                          <span className={`type-badge ${column.type.toLowerCase()}`}>
+                            {formatColumnType(column.type)}
+                          </span>
+                          {column.nullable && (
+                            <span className="nullable-badge">NULL</span>
+                          )}
+                        </div>
                       </div>
+                      {column.description && (
+                        <div className="column-description">
+                          {column.description}
+                        </div>
+                      )}
                     </div>
-                    {column.description && (
-                      <div className="column-description">
-                        {column.description}
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="schema-loading">
+                  <div className="loading-spinner"></div>
+                  <p>Cargando esquema...</p>
+                </div>
+              )}
+            </div>
+            
+            <div className="modal-footer">
+              <button 
+                className="btn-secondary"
+                onClick={() => setShowSchemaModal(false)}
+              >
+                Cerrar
+              </button>
+              <button 
+                className="btn-primary"
+                onClick={() => {
+                  setShowSchemaModal(false);
+                  // Focus en el editor SQL
+                  document.querySelector('.sql-editor')?.focus();
+                }}
+              >
+                Escribir Query
+              </button>
             </div>
           </div>
         </div>
