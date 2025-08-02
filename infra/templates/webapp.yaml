@@ -204,28 +204,28 @@ Outputs:
     Description: ID de la instancia EC2
     Value: !Ref WebAppInstance
     Export:
-      Name: data-pipeline-webapp-instance-id
+      Name: !Sub ${AWS::StackName}-WebApp-Instance-ID
 
   WebAppPublicIP:
     Description: IP pública de la instancia EC2
     Value: !Ref WebAppEIP
     Export:
-      Name: data-pipeline-webapp-public-ip
+      Name: !Sub ${AWS::StackName}-WebApp-Public-IP
 
   WebAppURL:
     Description: URL de la aplicación web
     Value: !Sub http://${WebAppEIP}
     Export:
-      Name: data-pipeline-webapp-url
+      Name: !Sub ${AWS::StackName}-WebApp-URL
 
   APIURL:
     Description: URL de la API
     Value: !Sub http://${WebAppEIP}/api
     Export:
-      Name: data-pipeline-api-url
+      Name: !Sub ${AWS::StackName}-API-URL
 
   EC2SecurityGroupId:
     Description: ID del Security Group para EC2
     Value: !Ref EC2SecurityGroup
     Export:
-      Name: data-pipeline-ec2-sg-id 
+      Name: !Sub ${AWS::StackName}-EC2-SG-ID 

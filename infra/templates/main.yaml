@@ -32,6 +32,21 @@ Parameters:
     Default: 300
     MinValue: 3
     MaxValue: 900
+    
+  VpcCidr:
+    Type: String
+    Description: CIDR block para la VPC
+    Default: 10.0.0.0/16
+    
+  PublicSubnetCidr:
+    Type: String
+    Description: CIDR block para la subred pública
+    Default: 10.0.1.0/24
+    
+  PrivateSubnetCidr:
+    Type: String
+    Description: CIDR block para la subred privada
+    Default: 10.0.2.0/24
 
 Resources:
   # Network Stack
@@ -39,7 +54,10 @@ Resources:
     Type: AWS::CloudFormation::Stack
     Properties:
       TemplateURL: https://data-pipeline-templates-899325643341.s3.us-east-1.amazonaws.com/templates/network.yaml
-      Parameters: {}
+      Parameters:
+        VpcCidr: !Ref VpcCidr
+        PublicSubnetCidr: !Ref PublicSubnetCidr
+        PrivateSubnetCidr: !Ref PrivateSubnetCidr
       Tags:
         - Key: Name
           Value: !Sub ${AWS::StackName}-Network
@@ -89,6 +107,7 @@ Resources:
     DependsOn: 
       - NetworkStack
       - StorageStack
+      - LambdaStack
     Properties:
       TemplateURL: https://data-pipeline-templates-899325643341.s3.us-east-1.amazonaws.com/templates/webapp.yaml
       Parameters:
@@ -207,15 +226,6 @@ Outputs:
     Value: !GetAtt LambdaStack.Outputs.LambdaQueryFunctionArn
     Export:
       Name: !Sub ${AWS::StackName}-Query-Function-ARN
-
-  # Web Application Outputs
-  WebAppURL:
-    Description: URL de la aplicación web
-    Value: !GetAtt WebAppStack.Outputs.WebAppURL
-
-  APIURL:
-    Description: URL de la API
-    Value: !GetAtt WebAppStack.Outputs.APIURL
 
   # Stack Information
   StackInfo:
