@@ -65,11 +65,11 @@ fi
 # Verificar dependencias críticas
 print_status "Verificando dependencias críticas..."
 
-# Verificar Apache Arrow
-if npm list apache-arrow > /dev/null 2>&1; then
-    print_success "Apache Arrow instalado"
+# Verificar CSV Parser
+if npm list csv-parser > /dev/null 2>&1; then
+    print_success "CSV Parser instalado"
 else
-    print_error "Apache Arrow no está instalado"
+    print_error "CSV Parser no está instalado"
     exit 1
 fi
 
@@ -172,7 +172,7 @@ echo ""
 echo "📋 Próximos pasos:"
 echo "1. Copia .env.example a .env y configura tus variables"
 echo "2. Ejecuta: node scripts/test-query.js para pruebas básicas"
-echo "3. Ejecuta: node scripts/test-parquet-query.js para pruebas completas"
+echo "3. Ejecuta: node scripts/test-csv-query.js para pruebas completas"
 echo ""
 echo "🔧 Comandos útiles:"
 echo "  npm start          - Iniciar en modo desarrollo"

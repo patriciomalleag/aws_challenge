@@ -1,13 +1,7 @@
 /**
  * Punto de entrada principal para la función Lambda Query
- * Proporciona endpoints HTTP para consultas SQL ad-hoc sobre archivos Parquet
- * @  // Validar variables de entorno
-  const requiredEnvVars = [
-    'S3_BUCKET_RAW',
-    'DDB_TABLE_NAME',
-    'MAX_QUERY_TIMEOUT_MS',
-    'MAX_RESULT_ROWS'
-  ];lambda-query/index
+ * Proporciona endpoints HTTP para consultas SQL ad-hoc sobre archivos CSV
+ * @module lambda-query/index
  */
 
 const { logger, logError, logPerformance } = require('../../shared/utils/logger');
@@ -152,7 +146,7 @@ exports.initialize = async () => {
 
   // Validar variables de entorno requeridas
   const requiredEnvVars = [
-    'S3_BUCKET_CURATED',
+    'S3_BUCKET_RAW',
     'DDB_TABLE_NAME',
     'MAX_QUERY_TIMEOUT_MS',
     'MAX_RESULT_ROWS'

@@ -49,34 +49,42 @@ function generateSampleData() {
 }
 
 /**
- * Crear archivo Parquet de ejemplo
+ * Crear archivo CSV de ejemplo
  */
-async function createSampleParquetFile(data, filename) {
+async function createSampleCsvFile(data, filename) {
   try {
-    // Crear tabla Arrow
-    const table = arrow.Table.from(data);
-    
     // Crear directorio temporal
-    const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'parquet-test-'));
+    const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'csv-test-'));
     const filePath = path.join(tempDir, filename);
     
-    // Escribir archivo Parquet
-    const writer = arrow.TableWriter.forFile(filePath);
-    await writer.write(table);
-    await writer.close();
+    // Configurar CSV writer
+    const csvWriter = createObjectCsvWriter({
+      path: filePath,
+      header: [
+        { id: 'id', title: 'id' },
+        { id: 'name', title: 'name' },
+        { id: 'category', title: 'category' },
+        { id: 'price', title: 'price' },
+        { id: 'stock', title: 'stock' },
+        { id: 'created_at', title: 'created_at' }
+      ]
+    });
+    
+    // Escribir datos al archivo CSV
+    await csvWriter.writeRecords(data);
     
     // Leer el archivo para verificar
     const buffer = await fs.readFile(filePath);
     
-    console.log(`✅ Archivo Parquet creado: ${filename}`);
-    console.log(`   - Filas: ${table.numRows}`);
-    console.log(`   - Columnas: ${table.numCols}`);
+    console.log(`✅ Archivo CSV creado: ${filename}`);
+    console.log(`   - Filas: ${data.length}`);
+    console.log(`   - Columnas: 6`);
     console.log(`   - Tamaño: ${buffer.length} bytes`);
     
     return { filePath, buffer, tempDir };
     
   } catch (error) {
-    console.error(`❌ Error creando archivo Parquet ${filename}:`, error.message);
+    console.error(`❌ Error creando archivo CSV ${filename}:`, error.message);
     throw error;
   }
 }
@@ -123,12 +131,12 @@ async function testRealQueries() {
     console.log('📊 Generando datos de ejemplo...');
     const sampleData = generateSampleData();
     
-    // 2. Crear archivo Parquet
-    console.log('📄 Creando archivo Parquet...');
-    const { filePath, buffer, tempDir } = await createSampleParquetFile(sampleData, 'products.parquet');
+    // 2. Crear archivo CSV
+    console.log('📄 Creando archivo CSV...');
+    const { filePath, buffer, tempDir } = await createSampleCsvFile(sampleData, 'products.csv');
     
     // 3. Simular archivo en S3
-    const s3File = await simulateS3Upload(filePath, 'products/products.parquet');
+    const s3File = await simulateS3Upload(filePath, 'products/products.csv');
     
     // 4. Probar consultas SQL
     console.log('\n🔍 Probando consultas SQL...\n');
@@ -230,4 +238,4 @@ if (require.main === module) {
   main();
 }
 
-module.exports = { testRealQueries, generateSampleData, createSampleParquetFile }; 
+module.exports = { testRealQueries, generateSampleData }; 

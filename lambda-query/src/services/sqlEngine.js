@@ -24,7 +24,7 @@ const MAX_QUERY_TIMEOUT_MS = parseInt(process.env.MAX_QUERY_TIMEOUT_MS) || 30000
 const MAX_RESULT_ROWS = parseInt(process.env.MAX_RESULT_ROWS) || 1000;
 
 /**
- * Clase para manejar consultas SQL sobre archivos Parquet
+ * Clase para manejar consultas SQL sobre archivos CSV
  */
 class SQLEngine {
   constructor() {
@@ -197,214 +197,290 @@ class SQLEngine {
   }
 
   /**
-   * Leer archivos Parquet y convertirlos a Arrow
+   * Importar archivos CSV a SQLite
    * @param {Array} localFiles - Lista de archivos locales
-   * @param {string} requestId - ID de la request
-   * @returns {Array} - Lista de tablas Arrow
-   */
-  async readParquetFiles(localFiles, requestId) {
-    const arrowTables = [];
-    
-    for (const file of localFiles) {
-      try {
-        const buffer = await fs.readFile(file.localPath);
-        
-        // Usar la API correcta de Apache Arrow para Node.js
-        const table = await arrow.tableFromIPC(buffer);
-        
-        arrowTables.push({
-          table,
-          localPath: file.localPath,
-          s3Key: file.s3Key
-        });
-
-        logger.debug('Archivo Parquet leído como Arrow', {
-          requestId,
-          s3Key: file.s3Key,
-          rows: table.numRows,
-          columns: table.numCols
-        });
-
-      } catch (error) {
-        logger.error('Error leyendo archivo Parquet', {
-          requestId,
-          localPath: file.localPath,
-          error: error.message
-        });
-        throw error;
-      }
-    }
-
-    return arrowTables;
-  }
-
-  /**
-   * Crear tabla virtual en SQLite
-   * @param {Array} arrowTables - Lista de tablas Arrow
    * @param {string} tableName - Nombre de la tabla
    * @param {string} requestId - ID de la request
    */
-  async createVirtualTable(arrowTables, tableName, requestId) {
-    return new Promise((resolve, reject) => {
-      try {
-        // Combinar todas las tablas Arrow en una sola
-        const combinedTable = this.combineArrowTables(arrowTables);
-        
-        // Crear tabla temporal en SQLite
-        const createTableSQL = this.generateCreateTableSQL(combinedTable, tableName);
-        
-        this.db.run(createTableSQL, (err) => {
-          if (err) {
-            logger.error('Error creando tabla SQLite', {
-              requestId,
-              error: err.message
-            });
-            reject(err);
-            return;
-          }
-
-          // Insertar datos
-          this.insertArrowData(combinedTable, tableName, requestId)
-            .then(resolve)
-            .catch(reject);
-
-        });
-
-      } catch (error) {
-        reject(error);
+  async importCsvFiles(localFiles, tableName, requestId) {
+    try {
+      if (localFiles.length === 0) {
+        throw createError('VALIDATION_ERROR', 'No hay archivos CSV para procesar');
       }
+
+      logger.info('Iniciando importación de archivos CSV', {
+        requestId,
+        tableName,
+        fileCount: localFiles.length
+      });
+
+      // 1. Leer el primer archivo para determinar la estructura
+      const firstFile = localFiles[0];
+      const schema = await this.inferCsvSchema(firstFile.localPath, requestId);
+      
+      // 2. Crear tabla en SQLite
+      await this.createTableFromSchema(tableName, schema, requestId);
+      
+      // 3. Importar todos los archivos CSV
+      for (const file of localFiles) {
+        await this.importSingleCsvFile(file.localPath, tableName, requestId);
+      }
+
+      logger.info('Importación de archivos CSV completada', {
+        requestId,
+        tableName,
+        fileCount: localFiles.length
+      });
+
+    } catch (error) {
+      logger.error('Error importando archivos CSV', {
+        requestId,
+        tableName,
+        error: error.message
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Inferir esquema de un archivo CSV
+   * @param {string} csvPath - Ruta del archivo CSV
+   * @param {string} requestId - ID de la request
+   * @returns {Array} - Esquema del CSV
+   */
+  async inferCsvSchema(csvPath, requestId) {
+    return new Promise((resolve, reject) => {
+      const schema = [];
+      const sampleRows = [];
+      let isFirstRow = true;
+      
+      fs.createReadStream(csvPath)
+        .pipe(csv())
+        .on('data', (row) => {
+          if (isFirstRow) {
+            // Obtener nombres de columnas
+            const columnNames = Object.keys(row);
+            columnNames.forEach(colName => {
+              schema.push({
+                name: colName.trim(),
+                type: 'TEXT', // Por defecto TEXT, se inferirá más adelante
+                nullable: true
+              });
+            });
+            isFirstRow = false;
+          }
+          
+          // Tomar muestra de las primeras 100 filas para inferir tipos
+          if (sampleRows.length < 100) {
+            sampleRows.push(row);
+          }
+        })
+        .on('end', () => {
+          // Inferir tipos de datos basado en la muestra
+          this.inferColumnTypes(schema, sampleRows);
+          
+          logger.debug('Esquema CSV inferido', {
+            requestId,
+            csvPath,
+            columnCount: schema.length,
+            sampleRows: sampleRows.length
+          });
+          
+          resolve(schema);
+        })
+        .on('error', (error) => {
+          logger.error('Error leyendo CSV para inferir esquema', {
+            requestId,
+            csvPath,
+            error: error.message
+          });
+          reject(error);
+        });
     });
   }
 
   /**
-   * Combinar múltiples tablas Arrow
-   * @param {Array} arrowTables - Lista de tablas Arrow
-   * @returns {Object} - Tabla combinada
+   * Inferir tipos de columnas basado en datos de muestra
+   * @param {Array} schema - Esquema base
+   * @param {Array} sampleRows - Filas de muestra
    */
-  combineArrowTables(arrowTables) {
-    if (arrowTables.length === 1) {
-      return arrowTables[0].table;
-    }
-
-    // Combinar múltiples tablas
-    const tables = arrowTables.map(item => item.table);
-    try {
-      return arrow.tableFromArrays(tables);
-    } catch (error) {
-      logger.error('Error combinando tablas Arrow', { error: error.message });
-      throw createError('PARQUET_CONVERSION_ERROR', 'Error combinando archivos Parquet');
-    }
-  }
-
-  /**
-   * Generar SQL para crear tabla
-   * @param {Object} arrowTable - Tabla Arrow
-   * @param {string} tableName - Nombre de la tabla
-   * @returns {string} - SQL para crear tabla
-   */
-  generateCreateTableSQL(arrowTable, tableName) {
-    const columns = [];
-    
-    for (let i = 0; i < arrowTable.numCols; i++) {
-      const column = arrowTable.getColumn(i);
-      const columnName = column.name;
-      const arrowType = column.type;
+  inferColumnTypes(schema, sampleRows) {
+    schema.forEach(column => {
+      const values = sampleRows.map(row => row[column.name]);
+      const nonEmptyValues = values.filter(val => val !== null && val !== undefined && val !== '');
       
-      // Mapear tipos Arrow a SQLite
-      let sqliteType = 'TEXT';
-      try {
-        if (arrowType.isInt()) {
-          sqliteType = 'INTEGER';
-        } else if (arrowType.isFloat()) {
-          sqliteType = 'REAL';
-        } else if (arrowType.isBool()) {
-          sqliteType = 'INTEGER';
-        } else if (arrowType.isDate()) {
-          sqliteType = 'TEXT';
-        }
-      } catch (error) {
-        logger.warn('Error mapeando tipo Arrow, usando TEXT por defecto', {
-          columnName,
-          arrowType: arrowType.toString(),
-          error: error.message
-        });
-        sqliteType = 'TEXT';
+      if (nonEmptyValues.length === 0) {
+        column.type = 'TEXT';
+        return;
       }
-      
-      columns.push(`"${columnName}" ${sqliteType}`);
-    }
 
-    return `CREATE TABLE "${tableName}" (${columns.join(', ')})`;
+      // Verificar si todos los valores son números enteros
+      const isInteger = nonEmptyValues.every(val => {
+        const num = parseInt(val, 10);
+        return !isNaN(num) && num.toString() === val.toString().trim();
+      });
+
+      if (isInteger) {
+        column.type = 'INTEGER';
+        return;
+      }
+
+      // Verificar si todos los valores son números decimales
+      const isFloat = nonEmptyValues.every(val => {
+        const num = parseFloat(val);
+        return !isNaN(num) && isFinite(num);
+      });
+
+      if (isFloat) {
+        column.type = 'REAL';
+        return;
+      }
+
+      // Verificar si son valores booleanos
+      const isBool = nonEmptyValues.every(val => {
+        const lowerVal = val.toString().toLowerCase().trim();
+        return ['true', 'false', '1', '0', 'yes', 'no'].includes(lowerVal);
+      });
+
+      if (isBool) {
+        column.type = 'INTEGER'; // SQLite usa INTEGER para booleanos
+        return;
+      }
+
+      // Por defecto, usar TEXT
+      column.type = 'TEXT';
+    });
   }
 
   /**
-   * Insertar datos Arrow en SQLite
-   * @param {Object} arrowTable - Tabla Arrow
+   * Crear tabla SQLite basada en esquema CSV
    * @param {string} tableName - Nombre de la tabla
+   * @param {Array} schema - Esquema del CSV
    * @param {string} requestId - ID de la request
    */
-  async insertArrowData(arrowTable, tableName, requestId) {
+  async createTableFromSchema(tableName, schema, requestId) {
     return new Promise((resolve, reject) => {
-      const numRows = arrowTable.numRows;
-      const numCols = arrowTable.numCols;
+      const columns = schema.map(col => `"${col.name}" ${col.type}`);
+      const createTableSQL = `CREATE TABLE IF NOT EXISTS "${tableName}" (${columns.join(', ')})`;
       
-      // Preparar statement de inserción
-      const placeholders = Array(numCols).fill('?').join(', ');
-      const insertSQL = `INSERT INTO "${tableName}" VALUES (${placeholders})`;
-      
-      const stmt = this.db.prepare(insertSQL, (err) => {
+      logger.debug('Creando tabla SQLite', {
+        requestId,
+        tableName,
+        columnCount: schema.length,
+        sql: createTableSQL.substring(0, 200) + '...'
+      });
+
+      this.db.run(createTableSQL, (err) => {
         if (err) {
-          reject(err);
+          logger.error('Error creando tabla SQLite', {
+            requestId,
+            tableName,
+            error: err.message
+          });
+          reject(createError('DATABASE_ERROR', `Error creando tabla: ${err.message}`));
           return;
         }
 
-        // Insertar filas en lotes
-        const batchSize = Math.min(1000, Math.floor(50000000 / numCols)); // Limitar por memoria
-        let insertedRows = 0;
+        logger.info('Tabla SQLite creada exitosamente', {
+          requestId,
+          tableName,
+          columnCount: schema.length
+        });
+        
+        resolve();
+      });
+    });
+  }
 
-        const insertBatch = (startRow) => {
-          const endRow = Math.min(startRow + batchSize, numRows);
-          
-          for (let row = startRow; row < endRow; row++) {
-            const values = [];
-            for (let col = 0; col < numCols; col++) {
-              const column = arrowTable.getColumn(col);
-              const value = column.get(row);
-              values.push(value);
-            }
-            
-            stmt.run(values, (err) => {
-              if (err) {
-                stmt.finalize();
-                reject(err);
-                return;
-              }
-            });
+  /**
+   * Importar un archivo CSV individual a SQLite
+   * @param {string} csvPath - Ruta del archivo CSV
+   * @param {string} tableName - Nombre de la tabla
+   * @param {string} requestId - ID de la request
+   */
+  async importSingleCsvFile(csvPath, tableName, requestId) {
+    return new Promise((resolve, reject) => {
+      let insertedRows = 0;
+      let hasError = false;
+      
+      // Obtener columnas de la tabla
+      this.db.all(`PRAGMA table_info("${tableName}")`, (err, columns) => {
+        if (err) {
+          reject(createError('DATABASE_ERROR', `Error obteniendo info de tabla: ${err.message}`));
+          return;
+        }
+
+        const columnNames = columns.map(col => col.name);
+        const placeholders = columnNames.map(() => '?').join(', ');
+        const insertSQL = `INSERT INTO "${tableName}" (${columnNames.map(name => `"${name}"`).join(', ')}) VALUES (${placeholders})`;
+        
+        const stmt = this.db.prepare(insertSQL, (prepareErr) => {
+          if (prepareErr) {
+            reject(createError('DATABASE_ERROR', `Error preparando statement: ${prepareErr.message}`));
+            return;
           }
 
-          insertedRows += (endRow - startRow);
-          
-          if (endRow < numRows) {
-            // Continuar con el siguiente lote
-            setImmediate(() => insertBatch(endRow));
-          } else {
-            // Finalizar inserción
-            stmt.finalize((err) => {
-              if (err) {
-                reject(err);
-              } else {
-                logger.info('Datos insertados en SQLite', {
-                  requestId,
-                  tableName,
-                  insertedRows
+          logger.debug('Iniciando importación de archivo CSV', {
+            requestId,
+            csvPath,
+            tableName,
+            columnCount: columnNames.length
+          });
+
+          // Leer y procesar archivo CSV
+          fs.createReadStream(csvPath)
+            .pipe(csv())
+            .on('data', (row) => {
+              if (hasError) return;
+
+              try {
+                const values = columnNames.map(colName => {
+                  const value = row[colName];
+                  return value === undefined || value === '' ? null : value;
                 });
-                resolve();
+
+                stmt.run(values, (runErr) => {
+                  if (runErr && !hasError) {
+                    hasError = true;
+                    stmt.finalize();
+                    reject(createError('DATABASE_ERROR', `Error insertando fila: ${runErr.message}`));
+                  }
+                });
+                
+                insertedRows++;
+              } catch (error) {
+                if (!hasError) {
+                  hasError = true;
+                  stmt.finalize();
+                  reject(createError('CSV_PROCESSING_ERROR', `Error procesando fila: ${error.message}`));
+                }
+              }
+            })
+            .on('end', () => {
+              if (hasError) return;
+
+              stmt.finalize((finalizeErr) => {
+                if (finalizeErr) {
+                  reject(createError('DATABASE_ERROR', `Error finalizando statement: ${finalizeErr.message}`));
+                } else {
+                  logger.info('Archivo CSV importado exitosamente', {
+                    requestId,
+                    csvPath,
+                    tableName,
+                    insertedRows
+                  });
+                  resolve(insertedRows);
+                }
+              });
+            })
+            .on('error', (streamErr) => {
+              if (!hasError) {
+                hasError = true;
+                stmt.finalize();
+                reject(createError('CSV_PROCESSING_ERROR', `Error leyendo archivo CSV: ${streamErr.message}`));
               }
             });
-          }
-        };
-
-        insertBatch(0);
+        });
       });
     });
   }

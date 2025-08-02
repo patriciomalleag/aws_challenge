@@ -157,8 +157,8 @@ exports.getDataset = async (datasetId) => {
       new Date(b.createdAt) - new Date(a.createdAt)
     )[0];
 
-    // Obtener archivos Parquet desde S3
-    const parquetFiles = await getParquetFilesFromS3(datasetId);
+    // Obtener archivos CSV desde S3 usando las rutas reales
+    const csvFiles = await getCsvFilesFromS3(result.Items);
 
     // Construir respuesta
     const dataset = {
@@ -174,13 +174,15 @@ exports.getDataset = async (datasetId) => {
         size: item.fileSize || 0,
         status: item.status || 'pending',
         createdAt: item.createdAt,
-        recordCount: item.recordCount || 0
+        recordCount: item.recordCount || 0,
+        s3Key: item.s3Key,
+        fileId: item.fileId
       })),
-      parquetFiles: parquetFiles,
+      csvFiles: csvFiles,
       totalRecords: result.Items.reduce((sum, item) => sum + (item.recordCount || 0), 0),
       totalSize: result.Items.reduce((sum, item) => sum + (item.fileSize || 0), 0),
       fileCount: result.Items.length,
-      parquetFileCount: parquetFiles.length
+      csvFileCount: csvFiles.length
     };
 
     const processingTime = Date.now() - startTime;
@@ -188,7 +190,7 @@ exports.getDataset = async (datasetId) => {
     logPerformance('GET_DATASET_SUCCESS', processingTime, {
       datasetId,
       fileCount: dataset.fileCount,
-      parquetFileCount: dataset.parquetFileCount
+      csvFileCount: dataset.csvFileCount
     });
 
     logger.info('Información del dataset obtenida correctamente', {
@@ -212,37 +214,48 @@ exports.getDataset = async (datasetId) => {
 };
 
 /**
- * Obtener archivos CSV de un dataset desde S3
- * @param {string} tableName - Nombre de la tabla
+ * Obtener archivos CSV de un dataset desde S3 usando las rutas reales de DynamoDB
+ * @param {Array} ddbItems - Items de DynamoDB con rutas de archivos
  * @returns {Array} - Lista de archivos CSV
  */
-async function getParquetFilesFromS3(tableName) {
+async function getCsvFilesFromS3(ddbItems) {
   try {
-    const params = {
-      Bucket: RAW_BUCKET,
-      Prefix: `${tableName}/`,
-      MaxKeys: 1000
-    };
-
-    const result = await s3.listObjectsV2(params).promise();
+    const csvFiles = [];
     
-    if (!result.Contents || result.Contents.length === 0) {
-      return [];
+    for (const item of ddbItems) {
+      if (item.s3Key && item.s3Key.endsWith('.csv')) {
+        try {
+          // Verificar que el archivo existe en S3
+          const headParams = {
+            Bucket: RAW_BUCKET,
+            Key: item.s3Key
+          };
+          
+          const headResult = await s3.headObject(headParams).promise();
+          
+          csvFiles.push({
+            key: item.s3Key,
+            size: headResult.ContentLength,
+            sizeMB: Math.round((headResult.ContentLength / (1024 * 1024)) * 100) / 100,
+            lastModified: headResult.LastModified,
+            etag: headResult.ETag,
+            fileId: item.fileId,
+            status: item.status
+          });
+        } catch (headError) {
+          logger.warn('Archivo no encontrado en S3', {
+            s3Key: item.s3Key,
+            fileId: item.fileId,
+            error: headError.message
+          });
+        }
+      }
     }
-    
-    return result.Contents
-      .filter(obj => obj.Key.endsWith('.csv'))
-      .map(obj => ({
-        key: obj.Key,
-        size: obj.Size,
-        sizeMB: Math.round((obj.Size / (1024 * 1024)) * 100) / 100,
-        lastModified: obj.LastModified,
-        etag: obj.ETag
-      }));
+
+    return csvFiles;
 
   } catch (error) {
     logger.warn('Error obteniendo archivos CSV desde S3', {
-      tableName,
       error: error.message
     });
     return [];
@@ -261,7 +274,7 @@ exports.getDatasetStats = async (datasetId) => {
     const stats = {
       name: dataset.name,
       totalFiles: dataset.fileCount,
-      totalParquetFiles: dataset.parquetFileCount,
+      totalCsvFiles: dataset.csvFileCount,
       totalRecords: dataset.totalRecords,
       totalSizeMB: Math.round((dataset.totalSize / (1024 * 1024)) * 100) / 100,
       averageFileSizeMB: dataset.fileCount > 0 ? 

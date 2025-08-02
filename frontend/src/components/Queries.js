@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { toast } from 'react-toastify';
-import { FaDatabase, FaPlay, FaEye, FaTable, FaColumns, FaInfoCircle } from 'react-icons/fa';
+import { FaDatabase, FaPlay, FaEye, FaTable, FaColumns, FaInfoCircle, FaBolt, FaCode, FaChartBar, FaClock, FaRocket } from 'react-icons/fa';
 import axios from 'axios';
 
 function Queries() {
@@ -143,8 +143,8 @@ function Queries() {
       console.log('[FRONTEND-QUERIES] Respuesta de consulta recibida:', {
         status: response.status,
         dataKeys: response.data ? Object.keys(response.data) : [],
-        hasResults: !!response.data.results,
-        resultsLength: response.data.results ? response.data.results.length : 0
+        hasResults: !!response.data.data,
+        resultsLength: response.data.data ? response.data.data.length : 0
       });
 
       setResults(response.data);
@@ -180,65 +180,119 @@ function Queries() {
   };
 
   return (
-    <div className="queries-container">
-      <h2 className="mb-4">
-        <FaDatabase className="me-2" />
-        Consultas SQL
-      </h2>
+    <div className="queries-container-modern animate-fadeIn">
+      {/* Header del Query Engine */}
+      <div className="queries-header">
+        <div className="header-content">
+          <h1 className="queries-title">
+            <FaBolt className="title-icon" />
+            SQL Query Engine
+          </h1>
+          <p className="queries-subtitle">
+            Ejecuta consultas SQL potentes sobre tus datasets con rendimiento optimizado
+          </p>
+        </div>
+        
+        <div className="query-stats">
+          <div className="stat-card">
+            <div className="stat-icon tables">
+              <FaTable />
+            </div>
+            <div className="stat-content">
+              <div className="stat-number">{tables.length}</div>
+              <div className="stat-label">Tablas</div>
+            </div>
+          </div>
+          
+          <div className="stat-card">
+            <div className="stat-icon performance">
+              <FaRocket />
+            </div>
+            <div className="stat-content">
+              <div className="stat-number">SQLite</div>
+              <div className="stat-label">Engine</div>
+            </div>
+          </div>
+          
+          <div className="stat-card">
+            <div className="stat-icon speed">
+              <FaClock />
+            </div>
+            <div className="stat-content">
+              <div className="stat-number">~1s</div>
+              <div className="stat-label">Avg Query</div>
+            </div>
+          </div>
+        </div>
+      </div>
 
-      <div className="row h-100">
-        {/* Panel izquierdo - Tablas (1/4 de la pantalla) */}
-        <div className="col-md-3">
-          <div className="card h-100">
-            <div className="card-header d-flex justify-content-between align-items-center">
-              <h5 className="mb-0">
-                <FaTable className="me-2" />
-                Tablas Disponibles
-              </h5>
+      <div className="queries-layout">
+        {/* Panel izquierdo - Tablas */}
+        <div className="tables-panel">
+          <div className="panel-card">
+            <div className="panel-header">
+              <h3 className="panel-title">
+                <FaDatabase className="panel-icon" />
+                Datasets Disponibles
+              </h3>
               <button 
-                className="btn btn-sm btn-outline-primary"
+                className="refresh-btn"
                 onClick={loadTables}
                 disabled={isLoadingTables}
+                title="Refrescar tablas"
               >
-                <FaEye />
+                <FaEye className={isLoadingTables ? 'animate-pulse' : ''} />
               </button>
             </div>
-            <div className="card-body p-0">
+            
+            <div className="panel-content">
               {isLoadingTables ? (
-                <div className="text-center p-4">
-                  <div className="spinner-border text-primary" role="status">
-                    <span className="visually-hidden">Cargando...</span>
-                  </div>
+                <div className="loading-state">
+                  <div className="loading-spinner"></div>
+                  <p>Cargando datasets...</p>
                 </div>
               ) : tables.length === 0 ? (
-                <div className="text-center p-4 text-muted">
-                  <FaDatabase className="mb-2" style={{ fontSize: '2rem' }} />
-                  <p>No hay tablas disponibles</p>
-                  <small>Sube archivos desde el Ingestor</small>
+                <div className="empty-tables-state">
+                  <FaDatabase className="empty-icon" />
+                  <h4>No hay datasets</h4>
+                  <p>Sube archivos desde el Ingestor para comenzar</p>
                 </div>
               ) : (
-                <div className="table-list">
+                <div className="tables-list">
                   {tables.map((table, index) => (
                     <div
                       key={index}
-                      className={`table-item ${selectedTable?.name === table.name ? 'active' : ''}`}
+                      className={`table-card ${selectedTable?.name === table.name ? 'selected' : ''} animate-slideIn`}
+                      style={{ animationDelay: `${index * 0.1}s` }}
                       onClick={() => handleTableSelect(table)}
                     >
-                      <div className="table-header">
-                        <FaTable className="table-icon" />
-                        <span className="table-name">{table.name}</span>
-                      </div>
-                      <div className="table-info">
-                        <small className="text-muted">
-                          {table.files.length} archivo{table.files.length !== 1 ? 's' : ''} • 
-                          {table.recordCount > 0 ? ` ${table.recordCount} registros` : ' Sin procesar'}
-                        </small>
-                      </div>
-                      {table.description && (
-                        <div className="table-description">
-                          <small>{table.description}</small>
+                      <div className="table-card-header">
+                        <div className="table-card-icon">
+                          <FaTable />
                         </div>
-                      )}
+                        <div className="table-card-status">
+                          {table.recordCount > 0 ? (
+                            <div className="status-dot ready"></div>
+                          ) : (
+                            <div className="status-dot processing"></div>
+                          )}
+                        </div>
+                      </div>
+                      
+                      <div className="table-card-content">
+                        <h4 className="table-card-name">{table.name}</h4>
+                        <div className="table-card-stats">
+                          <span className="stat">
+                            {table.files.length} archivo{table.files.length !== 1 ? 's' : ''}
+                          </span>
+                          <span className="stat">
+                            {table.recordCount > 0 ? `${table.recordCount.toLocaleString()} registros` : 'Procesando'}
+                          </span>
+                        </div>
+                        {table.description && (
+                          <p className="table-card-description">{table.description}</p>
+                        )}
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -247,150 +301,218 @@ function Queries() {
           </div>
         </div>
 
-        {/* Panel derecho - Query y Resultados (3/4 de la pantalla) */}
-        <div className="col-md-9">
-          <div className="row h-100">
-            {/* Zona superior - Editor de Query */}
-            <div className="col-12 mb-3">
-              <div className="card">
-                <div className="card-header d-flex justify-content-between align-items-center">
-                  <h5 className="mb-0">
-                    <FaColumns className="me-2" />
-                    Editor SQL
-                  </h5>
+        {/* Panel derecho - Query y Resultados */}
+        <div className="query-panel">
+          {/* Editor SQL Modernizado */}
+          <div className="editor-section">
+            <div className="panel-card">
+              <div className="panel-header">
+                <h3 className="panel-title">
+                  <FaCode className="panel-icon" />
+                  Editor SQL
+                </h3>
+                <div className="editor-actions">
+                  {selectedTable && (
+                    <div className="selected-table-info">
+                      <FaTable className="table-info-icon" />
+                      <span>{selectedTable.name}</span>
+                    </div>
+                  )}
                   <button
-                    className="btn btn-success"
+                    className={`execute-btn ${isLoading ? 'loading' : ''}`}
                     onClick={executeQuery}
-                    disabled={isLoading || !query.trim()}
+                    disabled={isLoading || !query.trim() || !selectedTable}
                   >
                     {isLoading ? (
-                      <>
-                        <div className="spinner-border spinner-border-sm me-2" role="status"></div>
-                        Ejecutando...
-                      </>
+                      <div className="executing-content">
+                        <div className="execute-spinner"></div>
+                        <span>Ejecutando...</span>
+                      </div>
                     ) : (
-                      <>
-                        <FaPlay className="me-2" />
-                        Ejecutar Query
-                      </>
+                      <div className="execute-content">
+                        <FaPlay className="execute-icon" />
+                        <span>Ejecutar Query</span>
+                      </div>
                     )}
                   </button>
                 </div>
-                <div className="card-body">
-                  <textarea
-                    className="form-control query-editor"
-                    rows="8"
-                    placeholder="Escribe tu consulta SQL aquí...&#10;Ejemplo: SELECT * FROM tabla LIMIT 10"
-                    value={query}
-                    onChange={(e) => setQuery(e.target.value)}
-                  />
+              </div>
+              
+              <div className="editor-content">
+                <div className="editor-toolbar">
+                  <div className="editor-info">
+                    <span className="editor-mode">SQL</span>
+                    {query.trim() && (
+                      <span className="char-count">{query.length} caracteres</span>
+                    )}
+                  </div>
+                  
+                  <div className="editor-hints">
+                    <span className="hint">⌘ + Enter para ejecutar</span>
+                  </div>
                 </div>
+                
+                <textarea
+                  className="sql-editor"
+                  rows="10"
+                  placeholder={selectedTable 
+                    ? `-- Consulta SQL para ${selectedTable.name}\nSELECT * FROM "${selectedTable.name}" LIMIT 10;`
+                    : "-- Selecciona una tabla primero\n-- Luego escribe tu consulta SQL aquí...\n-- Ejemplo: SELECT * FROM tabla LIMIT 10;"
+                  }
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  onKeyDown={(e) => {
+                    if ((e.metaKey || e.ctrlKey) && e.key === 'Enter' && !isLoading && query.trim() && selectedTable) {
+                      executeQuery();
+                    }
+                  }}
+                />
               </div>
             </div>
+          </div>
 
-            {/* Zona inferior - Resultados */}
-            <div className="col-12">
-              <div className="card h-100">
-                <div className="card-header">
-                  <h5 className="mb-0">
-                    <FaInfoCircle className="me-2" />
-                    Resultados
-                  </h5>
-                </div>
-                <div className="card-body results-container">
-                  {results ? (
-                    results.error ? (
-                      <div className="alert alert-danger">
-                        <strong>Error:</strong> {results.error}
+          {/* Resultados Modernizados */}
+          <div className="results-section">
+            <div className="panel-card">
+              <div className="panel-header">
+                <h3 className="panel-title">
+                  <FaChartBar className="panel-icon" />
+                  Resultados
+                </h3>
+                {results && results.data && results.data.length > 0 && (
+                  <div className="results-stats">
+                    <div className="result-stat">
+                      <span className="stat-value">{results.data.length}</span>
+                      <span className="stat-label">filas</span>
+                    </div>
+                    {results.executionTime && (
+                      <div className="result-stat">
+                        <span className="stat-value">{results.executionTime}</span>
+                        <span className="stat-label">ms</span>
                       </div>
-                    ) : (
-                      <div className="results-content">
-                        {results.data && results.data.length > 0 ? (
-                          <>
-                            <div className="results-info mb-3">
-                              <span className="badge bg-success me-2">
-                                {results.data.length} fila{results.data.length !== 1 ? 's' : ''}
-                              </span>
-                              {results.executionTime && (
-                                <span className="text-muted">
-                                  Tiempo de ejecución: {results.executionTime}ms
-                                </span>
-                              )}
-                            </div>
-                            <div className="table-responsive">
-                              <table className="table table-striped table-hover">
-                                <thead className="table-dark">
-                                  <tr>
-                                    {Object.keys(results.data[0]).map((column, index) => (
-                                      <th key={index}>{column}</th>
+                    )}
+                  </div>
+                )}
+              </div>
+              
+              <div className="results-content">
+                {results ? (
+                  results.error ? (
+                    <div className="error-state">
+                      <div className="error-icon">⚠️</div>
+                      <div className="error-content">
+                        <h4>Error en la consulta</h4>
+                        <p>{results.error}</p>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="results-data">
+                      {results.data && results.data.length > 0 ? (
+                        <div className="data-table-container">
+                          <div className="data-table-scroll">
+                            <table className="data-table">
+                              <thead>
+                                <tr>
+                                  {Object.keys(results.data[0]).map((column, index) => (
+                                    <th key={index} className="data-header">
+                                      <div className="header-content">
+                                        <span className="header-name">{column}</span>
+                                        <span className="header-type">
+                                          {typeof results.data[0][column] === 'number' ? 'NUM' : 
+                                           typeof results.data[0][column] === 'boolean' ? 'BOOL' : 'TEXT'}
+                                        </span>
+                                      </div>
+                                    </th>
+                                  ))}
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {results.data.map((row, rowIndex) => (
+                                  <tr key={rowIndex} className="data-row">
+                                    {Object.values(row).map((value, colIndex) => (
+                                      <td key={colIndex} className="data-cell">
+                                        {value === null || value === undefined ? (
+                                          <span className="null-value">NULL</span>
+                                        ) : typeof value === 'number' ? (
+                                          <span className="number-value">{value.toLocaleString()}</span>
+                                        ) : typeof value === 'boolean' ? (
+                                          <span className={`boolean-value ${value ? 'true' : 'false'}`}>
+                                            {value ? 'TRUE' : 'FALSE'}
+                                          </span>
+                                        ) : (
+                                          <span className="text-value">{String(value)}</span>
+                                        )}
+                                      </td>
                                     ))}
                                   </tr>
-                                </thead>
-                                <tbody>
-                                  {results.data.map((row, rowIndex) => (
-                                    <tr key={rowIndex}>
-                                      {Object.values(row).map((value, colIndex) => (
-                                        <td key={colIndex}>
-                                          {value === null || value === undefined ? (
-                                            <span className="text-muted">NULL</span>
-                                          ) : (
-                                            String(value)
-                                          )}
-                                        </td>
-                                      ))}
-                                    </tr>
-                                  ))}
-                                </tbody>
-                              </table>
-                            </div>
-                          </>
-                        ) : (
-                          <div className="text-center text-muted">
-                            <FaInfoCircle className="mb-2" style={{ fontSize: '2rem' }} />
-                            <p>La consulta no devolvió resultados</p>
+                                ))}
+                              </tbody>
+                            </table>
                           </div>
-                        )}
-                      </div>
-                    )
-                  ) : (
-                    <div className="text-center text-muted">
-                      <FaDatabase className="mb-2" style={{ fontSize: '2rem' }} />
-                      <p>Ejecuta una consulta para ver los resultados</p>
+                        </div>
+                      ) : (
+                        <div className="empty-results-state">
+                          <FaInfoCircle className="empty-results-icon" />
+                          <h4>Sin resultados</h4>
+                          <p>La consulta se ejecutó correctamente pero no devolvió datos</p>
+                        </div>
+                      )}
                     </div>
-                  )}
-                </div>
+                  )
+                ) : (
+                  <div className="no-query-state">
+                    <FaBolt className="no-query-icon" />
+                    <h4>¿Listo para consultar?</h4>
+                    <p>Selecciona una tabla y escribe tu consulta SQL para comenzar</p>
+                    {!selectedTable && (
+                      <div className="query-tip">
+                        <strong>Tip:</strong> Primero selecciona una tabla de la lista
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Modal para mostrar esquema de tabla */}
+      {/* Schema Panel - Solo se muestra si hay esquema */}
       {selectedTable && selectedTable.schema && (
-        <div className="schema-info mt-3">
-          <div className="card">
-            <div className="card-header">
-              <h6 className="mb-0">
-                <FaColumns className="me-2" />
-                Esquema de {selectedTable.name}
-              </h6>
+        <div className="schema-panel animate-slideIn">
+          <div className="panel-card">
+            <div className="panel-header">
+              <h3 className="panel-title">
+                <FaColumns className="panel-icon" />
+                Esquema: {selectedTable.name}
+              </h3>
+              <div className="schema-stats">
+                <span className="schema-stat">
+                  {selectedTable.schema.length} columnas
+                </span>
+              </div>
             </div>
-            <div className="card-body">
-              <div className="row">
+            
+            <div className="schema-content">
+              <div className="schema-grid">
                 {selectedTable.schema.map((column, index) => (
-                  <div key={index} className="col-md-4 mb-2">
-                    <div className="schema-column">
-                      <strong>{column.name}</strong>
-                      <span className="badge bg-secondary ms-2">
-                        {formatColumnType(column.type)}
-                      </span>
-                      {column.nullable && (
-                        <span className="badge bg-warning ms-1">NULL</span>
-                      )}
-                      {column.description && (
-                        <small className="d-block text-muted">{column.description}</small>
-                      )}
+                  <div key={index} className="schema-column-card">
+                    <div className="column-header">
+                      <div className="column-name">{column.name}</div>
+                      <div className="column-badges">
+                        <span className={`type-badge ${column.type.toLowerCase()}`}>
+                          {formatColumnType(column.type)}
+                        </span>
+                        {column.nullable && (
+                          <span className="nullable-badge">NULL</span>
+                        )}
+                      </div>
                     </div>
+                    {column.description && (
+                      <div className="column-description">
+                        {column.description}
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>

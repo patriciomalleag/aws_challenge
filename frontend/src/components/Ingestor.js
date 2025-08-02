@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useDropzone } from 'react-dropzone';
 import Papa from 'papaparse';
 import { toast } from 'react-toastify';
-import { FaUpload, FaEye, FaEdit, FaSave, FaTrash } from 'react-icons/fa';
+import { FaUpload, FaEye, FaEdit, FaSave, FaTrash, FaCloudUploadAlt, FaCogs, FaTable, FaCheckCircle, FaClock, FaFileAlt, FaDatabase, FaPlay } from 'react-icons/fa';
 import axios from 'axios';
 
 function Ingestor() {
@@ -337,127 +337,226 @@ function Ingestor() {
   });
 
   return (
-    <div>
-      <h2 className="mb-4">
-        <FaUpload className="me-2" />
-        Ingestor de Datos
-      </h2>
+    <div className="ingestor-container animate-fadeIn">
+      {/* Header del Ingestor */}
+      <div className="ingestor-header">
+        <div className="header-content">
+          <h1 className="ingestor-title">
+            <FaCloudUploadAlt className="title-icon" />
+            Ingestor de Datos
+          </h1>
+          <p className="ingestor-subtitle">
+            Sube, configura y procesa tus archivos CSV de manera inteligente
+          </p>
+        </div>
+        
+        <div className="process-steps">
+          <div className={`step ${currentFile ? 'active' : ''}`}>
+            <div className="step-icon">
+              <FaUpload />
+            </div>
+            <span>Subir</span>
+          </div>
+          <div className="step-arrow"></div>
+          <div className={`step ${schema.length > 0 ? 'active' : ''}`}>
+            <div className="step-icon">
+              <FaCogs />
+            </div>
+            <span>Configurar</span>
+          </div>
+          <div className="step-arrow"></div>
+          <div className="step">
+            <div className="step-icon">
+              <FaPlay />
+            </div>
+            <span>Procesar</span>
+          </div>
+        </div>
+      </div>
 
-      {/* Archivos existentes */}
-      <div className="card mb-4">
-        <h4>Archivos Cargados</h4>
+      {/* Archivos existentes - Versión moderna */}
+      <div className="files-section">
+        <div className="section-header">
+          <h3 className="section-title">
+            <FaDatabase className="section-icon" />
+            Archivos en tu Pipeline
+          </h3>
+          <div className="files-stats">
+            <span className="stat-item">
+              <strong>{files.length}</strong> archivos totales
+            </span>
+          </div>
+        </div>
+        
         {files.length === 0 ? (
-          <p className="text-muted">No hay archivos cargados</p>
+          <div className="empty-state">
+            <FaFileAlt className="empty-icon" />
+            <h4>No hay archivos cargados</h4>
+            <p>Sube tu primer archivo CSV para comenzar</p>
+          </div>
         ) : (
-          <div className="table-responsive">
-            <table className="table table-striped">
-              <thead>
-                <tr>
-                  <th>Nombre</th>
-                  <th>Directorio</th>
-                  <th>Tabla</th>
-                  <th>Estado</th>
-                  <th>Acciones</th>
-                </tr>
-              </thead>
-              <tbody>
-                {files.map((file, index) => (
-                  <tr key={index}>
-                    <td>{file.name}</td>
-                    <td>{file.directory}</td>
-                    <td>{file.tableName}</td>
-                    <td>
-                      <span className={`badge ${file.status === 'processed' ? 'bg-success' : 'bg-warning'}`}>
-                        {file.status === 'processed' ? 'Procesado' : 'Pendiente'}
+          <div className="files-grid">
+            {files.map((file, index) => (
+              <div key={index} className="file-card animate-slideIn" style={{ animationDelay: `${index * 0.1}s` }}>
+                <div className="file-header">
+                  <div className="file-icon">
+                    <FaTable />
+                  </div>
+                  <div className="file-status">
+                    {file.status === 'completed' ? (
+                      <FaCheckCircle className="status-icon success" />
+                    ) : (
+                      <FaClock className="status-icon pending" />
+                    )}
+                  </div>
+                </div>
+                
+                <div className="file-content">
+                  <h4 className="file-name">{file.name}</h4>
+                  <div className="file-details">
+                    <div className="detail-item">
+                      <span className="detail-label">Tabla:</span>
+                      <span className="detail-value">{file.tableName}</span>
+                    </div>
+                    <div className="detail-item">
+                      <span className="detail-label">Directorio:</span>
+                      <span className="detail-value">{file.directory}</span>
+                    </div>
+                    <div className="detail-item">
+                      <span className="detail-label">Estado:</span>
+                      <span className={`status-badge ${file.status === 'completed' ? 'success' : 'pending'}`}>
+                        {file.status === 'completed' ? 'Completado' : 'Procesando'}
                       </span>
-                    </td>
-                    <td>
-                      <button className="btn btn-sm btn-outline-primary me-1">
-                        <FaEye />
-                      </button>
-                      <button className="btn btn-sm btn-outline-danger">
-                        <FaTrash />
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="file-actions">
+                  <button className="action-btn primary" title="Ver detalles">
+                    <FaEye />
+                  </button>
+                  <button className="action-btn danger" title="Eliminar">
+                    <FaTrash />
+                  </button>
+                </div>
+              </div>
+            ))}
           </div>
         )}
       </div>
 
-      {/* Subida de archivo */}
-      <div className="card mb-4">
-        <h4>Subir Nuevo Archivo</h4>
+      {/* Zona de subida - Modernizada */}
+      <div className="upload-section">
+        <div className="section-header">
+          <h3 className="section-title">
+            <FaCloudUploadAlt className="section-icon" />
+            Subir Nuevo Archivo
+          </h3>
+        </div>
         
-        <div {...getRootProps()} className={`dropzone ${isDragActive ? 'active' : ''}`}>
+        <div {...getRootProps()} className={`dropzone-modern ${isDragActive ? 'active' : ''} ${currentFile ? 'has-file' : ''}`}>
           <input {...getInputProps()} />
+          
           {isAnalyzing ? (
-            <div className="loading">
-              <div className="spinner"></div>
-              <span className="ms-2">Analizando archivo...</span>
+            <div className="upload-state analyzing">
+              <div className="upload-spinner"></div>
+              <div className="upload-content">
+                <h4>Analizando archivo...</h4>
+                <p>Detectando estructura y tipos de datos</p>
+              </div>
             </div>
           ) : currentFile ? (
-            <div>
-              <FaUpload className="mb-2" style={{ fontSize: '2rem' }} />
-              <p className="mb-0">Archivo seleccionado: <strong>{currentFile.name}</strong></p>
-              <small className="text-muted">Arrastra otro archivo para cambiar</small>
+            <div className="upload-state success">
+              <div className="upload-icon success">
+                <FaCheckCircle />
+              </div>
+              <div className="upload-content">
+                <h4>Archivo cargado</h4>
+                <p className="file-name">{currentFile.name}</p>
+                <small>Arrastra otro archivo para reemplazar</small>
+              </div>
             </div>
           ) : (
-            <div>
-              <FaUpload className="mb-2" style={{ fontSize: '2rem' }} />
-              <p className="mb-0">Arrastra un archivo CSV aquí o haz clic para seleccionar</p>
-              <small className="text-muted">Solo archivos CSV</small>
+            <div className="upload-state empty">
+              <div className="upload-icon">
+                <FaCloudUploadAlt />
+              </div>
+              <div className="upload-content">
+                <h4>Arrastra tu archivo CSV aquí</h4>
+                <p>o haz clic para seleccionar desde tu dispositivo</p>
+                <div className="upload-features">
+                  <span className="feature">✨ Detección automática de esquema</span>
+                  <span className="feature">🔍 Validación en tiempo real</span>
+                  <span className="feature">⚡ Procesamiento optimizado</span>
+                </div>
+              </div>
             </div>
           )}
         </div>
 
+        {/* Configuración del archivo */}
         {currentFile && (
-          <div className="mt-3">
-            <div className="row">
-              <div className="col-md-6">
-                <label className="form-label">Separador</label>
+          <div className="config-section animate-slideIn">
+            <h4 className="config-title">
+              <FaCogs className="me-2" />
+              Configuración del archivo
+            </h4>
+            
+            <div className="config-grid">
+              <div className="config-field">
+                <label className="config-label">
+                  <FaEdit className="label-icon" />
+                  Separador CSV
+                </label>
                 <select 
-                  className="form-select"
+                  className="config-input"
                   value={uploadConfig.separator}
                   onChange={(e) => setUploadConfig(prev => ({ ...prev, separator: e.target.value }))}
                 >
                   <option value=",">Coma (,)</option>
                   <option value=";">Punto y coma (;)</option>
-                  <option value="\t">Tab</option>
+                  <option value="\t">Tab (\t)</option>
                   <option value="|">Pipe (|)</option>
                 </select>
               </div>
-              <div className="col-md-6">
-                <label className="form-label">Directorio</label>
+              
+              <div className="config-field">
+                <label className="config-label">
+                  <FaDatabase className="label-icon" />
+                  Directorio de destino
+                </label>
                 <input
                   type="text"
-                  className="form-control"
-                  placeholder="ej: datasets, raw_data, etc."
+                  className="config-input"
+                  placeholder="ej: datasets, analytics, raw_data"
                   value={uploadConfig.directory}
                   onChange={(e) => setUploadConfig(prev => ({ ...prev, directory: e.target.value }))}
                 />
               </div>
-            </div>
-            
-            <div className="row mt-3">
-              <div className="col-md-6">
-                <label className="form-label">Nombre de la Tabla</label>
+              
+              <div className="config-field">
+                <label className="config-label">
+                  <FaTable className="label-icon" />
+                  Nombre de la tabla
+                </label>
                 <input
                   type="text"
-                  className="form-control"
-                  placeholder="ej: usuarios, ventas, etc."
+                  className="config-input"
+                  placeholder="ej: usuarios, ventas, productos"
                   value={uploadConfig.tableName}
                   onChange={(e) => setUploadConfig(prev => ({ ...prev, tableName: e.target.value }))}
                 />
               </div>
-              <div className="col-md-6">
-                <label className="form-label">Descripción</label>
+              
+              <div className="config-field">
+                <label className="config-label">
+                  <FaFileAlt className="label-icon" />
+                  Descripción (opcional)
+                </label>
                 <input
                   type="text"
-                  className="form-control"
-                  placeholder="Descripción opcional"
+                  className="config-input"
+                  placeholder="Describe el contenido de este dataset"
                   value={uploadConfig.description}
                   onChange={(e) => setUploadConfig(prev => ({ ...prev, description: e.target.value }))}
                 />
@@ -467,33 +566,45 @@ function Ingestor() {
         )}
       </div>
 
-      {/* Esquema */}
+      {/* Esquema de datos - Modernizado */}
       {schema.length > 0 && (
-        <div className="card mb-4">
-          <div className="d-flex justify-content-between align-items-center mb-3">
-            <h4>Esquema de Datos</h4>
-            <button className="btn btn-sm btn-outline-primary" onClick={addSchemaField}>
-              <FaEdit className="me-1" />
+        <div className="schema-section animate-slideIn">
+          <div className="section-header">
+            <h3 className="section-title">
+              <FaTable className="section-icon" />
+              Esquema de Datos
+            </h3>
+            <button className="add-field-btn" onClick={addSchemaField}>
+              <FaEdit className="btn-icon" />
               Agregar Campo
             </button>
           </div>
           
-          <div className="schema-preview">
-            {schema.map((field, index) => (
-              <div key={index} className="schema-field">
-                <div className="row w-100">
-                  <div className="col-md-3">
+          <div className="schema-container">
+            <div className="schema-header">
+              <div className="header-col">Campo</div>
+              <div className="header-col">Tipo</div>
+              <div className="header-col">Descripción</div>
+              <div className="header-col">Nullable</div>
+              <div className="header-col">Acción</div>
+            </div>
+            
+            <div className="schema-fields">
+              {schema.map((field, index) => (
+                <div key={index} className="schema-field-modern">
+                  <div className="field-col">
                     <input
                       type="text"
-                      className="form-control form-control-sm"
+                      className="field-input"
                       placeholder="Nombre del campo"
                       value={field.name}
                       onChange={(e) => updateSchemaField(index, 'name', e.target.value)}
                     />
                   </div>
-                  <div className="col-md-2">
+                  
+                  <div className="field-col">
                     <select
-                      className="form-select form-select-sm"
+                      className="field-select"
                       value={field.type}
                       onChange={(e) => updateSchemaField(index, 'type', e.target.value)}
                     >
@@ -504,59 +615,94 @@ function Ingestor() {
                       <option value="date">Date</option>
                     </select>
                   </div>
-                  <div className="col-md-4">
+                  
+                  <div className="field-col">
                     <input
                       type="text"
-                      className="form-control form-control-sm"
-                      placeholder="Descripción"
+                      className="field-input"
+                      placeholder="Descripción del campo"
                       value={field.description}
                       onChange={(e) => updateSchemaField(index, 'description', e.target.value)}
                     />
                   </div>
-                  <div className="col-md-2">
-                    <div className="form-check">
+                  
+                  <div className="field-col">
+                    <label className="checkbox-container">
                       <input
-                        className="form-check-input"
                         type="checkbox"
                         checked={field.nullable}
                         onChange={(e) => updateSchemaField(index, 'nullable', e.target.checked)}
                       />
-                      <label className="form-check-label">Nullable</label>
-                    </div>
+                      <span className="checkmark"></span>
+                    </label>
                   </div>
-                  <div className="col-md-1">
+                  
+                  <div className="field-col">
                     <button
-                      className="btn btn-sm btn-outline-danger"
+                      className="remove-field-btn"
                       onClick={() => removeSchemaField(index)}
+                      title="Eliminar campo"
                     >
                       <FaTrash />
                     </button>
                   </div>
                 </div>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
         </div>
       )}
 
-      {/* Botón de ingesta */}
+      {/* Botón de procesamiento - Modernizado */}
       {currentFile && schema.length > 0 && (
-        <div className="text-center">
+        <div className="process-section">
+          <div className="process-info">
+            <div className="info-card">
+              <FaFileAlt className="info-icon" />
+              <div className="info-content">
+                <h5>Archivo preparado</h5>
+                <p>{currentFile.name}</p>
+              </div>
+            </div>
+            
+            <div className="info-card">
+              <FaTable className="info-icon" />
+              <div className="info-content">
+                <h5>Campos definidos</h5>
+                <p>{schema.length} columnas</p>
+              </div>
+            </div>
+            
+            <div className="info-card">
+              <FaDatabase className="info-icon" />
+              <div className="info-content">
+                <h5>Tabla destino</h5>
+                <p>{uploadConfig.tableName || 'Sin definir'}</p>
+              </div>
+            </div>
+          </div>
+          
           <button
-            className="btn btn-success btn-lg"
+            className={`process-button ${isUploading ? 'processing' : ''}`}
             onClick={handleUpload}
             disabled={isUploading}
           >
             {isUploading ? (
-              <>
-                <div className="spinner-border spinner-border-sm me-2" role="status"></div>
-                Ingestionando...
-              </>
+              <div className="processing-content">
+                <div className="processing-spinner"></div>
+                <span className="processing-text">
+                  <strong>Procesando...</strong>
+                  <small>Analizando y almacenando datos</small>
+                </span>
+              </div>
             ) : (
-              <>
-                <FaSave className="me-2" />
-                Ingestar Datos
-              </>
+              <div className="process-content">
+                <FaPlay className="process-icon" />
+                <span className="process-text">
+                  <strong>Iniciar Procesamiento</strong>
+                  <small>Ingesta y procesa el archivo</small>
+                </span>
+              </div>
             )}
           </button>
         </div>

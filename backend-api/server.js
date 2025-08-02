@@ -457,12 +457,39 @@ app.post('/api/query', async (req, res) => {
       return res.status(400).json({ error: 'Query es requerida' });
     }
 
-    // Validar que la query no sea maliciosa
+    // Validar que la query sea una consulta SELECT válida
     const sanitizedQuery = query.trim().toLowerCase();
-    if (sanitizedQuery.includes('drop') || sanitizedQuery.includes('delete') || 
-        sanitizedQuery.includes('update') || sanitizedQuery.includes('insert') ||
-        sanitizedQuery.includes('create') || sanitizedQuery.includes('alter')) {
-      return res.status(400).json({ error: 'Solo se permiten consultas SELECT' });
+    
+    // Verificar que la consulta empiece con SELECT
+    if (!sanitizedQuery.startsWith('select')) {
+      return res.status(400).json({ 
+        error: 'Solo se permiten consultas SELECT',
+        code: 'INVALID_SQL_QUERY'
+      });
+    }
+    
+    // Verificar que no contenga palabras clave peligrosas
+    const dangerousKeywords = [
+      'drop', 'delete', 'update', 'insert', 'create', 'alter', 
+      'truncate', 'exec', 'execute', 'declare', 'merge', 
+      'replace', 'grant', 'revoke', 'commit', 'rollback'
+    ];
+    
+    for (const keyword of dangerousKeywords) {
+      if (sanitizedQuery.includes(keyword)) {
+        return res.status(400).json({ 
+          error: `Palabra clave no permitida: ${keyword}`,
+          code: 'INVALID_SQL_QUERY'
+        });
+      }
+    }
+    
+    // Validar que tenga un nombre de tabla
+    if (!tableName || !tableName.trim()) {
+      return res.status(400).json({ 
+        error: 'Nombre de tabla es requerido',
+        code: 'VALIDATION_ERROR'
+      });
     }
 
     // Configurar parámetros para la Lambda Query
@@ -492,14 +519,45 @@ app.post('/api/query', async (req, res) => {
     const responsePayload = JSON.parse(lambdaResponse.Payload);
     
     if (responsePayload.statusCode >= 400) {
-      const errorBody = JSON.parse(responsePayload.body);
+      let errorBody;
+      try {
+        errorBody = JSON.parse(responsePayload.body);
+      } catch (parseError) {
+        console.error('[ERROR] Error parseando body de error de Lambda:', parseError.message);
+        return res.status(500).json({
+          success: false,
+          error: 'Error interno procesando la consulta',
+          code: 'INTERNAL_ERROR'
+        });
+      }
+      
       return res.status(responsePayload.statusCode).json({
-        error: errorBody.error || 'Error al ejecutar la consulta'
+        success: false,
+        error: errorBody.error || 'Error al ejecutar la consulta',
+        code: errorBody.code || 'QUERY_ERROR',
+        requestId: errorBody.requestId,
+        timestamp: errorBody.timestamp
       });
     }
 
-    const resultBody = JSON.parse(responsePayload.body);
-    res.json(resultBody);
+    let resultBody;
+    try {
+      resultBody = JSON.parse(responsePayload.body);
+      
+      // Asegurar formato consistente de respuesta exitosa
+      if (resultBody.success !== false) {
+        resultBody.success = true;
+      }
+      
+      res.json(resultBody);
+    } catch (parseError) {
+      console.error('[ERROR] Error parseando respuesta exitosa de Lambda:', parseError.message);
+      return res.status(500).json({
+        success: false,
+        error: 'Error procesando respuesta de la consulta',
+        code: 'INTERNAL_ERROR'
+      });
+    }
 
   } catch (error) {
     console.error('[ERROR] Error executing query:', error);
@@ -509,12 +567,37 @@ app.post('/api/query', async (req, res) => {
       errorCode: error.code,
       errorMessage: error.message,
       requestDetails: {
-        tableId: req.params.tableId,
-        queryType: req.body.queryType,
+        tableName: req.body.tableName,
+        queryLength: query ? query.length : 0,
         functionName: LAMBDA_QUERY_FUNCTION_NAME
       }
     }));
-    res.status(500).json({ error: 'Error al ejecutar la consulta' });
+    
+    // Determinar el tipo de error y responder apropiadamente
+    let statusCode = 500;
+    let errorCode = 'INTERNAL_ERROR';
+    let errorMessage = 'Error al ejecutar la consulta';
+    
+    if (error.code === 'ResourceNotFoundException') {
+      statusCode = 404;
+      errorCode = 'LAMBDA_NOT_FOUND';
+      errorMessage = 'Función Lambda no encontrada';
+    } else if (error.code === 'TooManyRequestsException') {
+      statusCode = 429;
+      errorCode = 'RATE_LIMIT_EXCEEDED';
+      errorMessage = 'Demasiadas solicitudes, intente más tarde';
+    } else if (error.code === 'InvalidParameterValueException') {
+      statusCode = 400;
+      errorCode = 'INVALID_PARAMETER';
+      errorMessage = 'Parámetros inválidos en la solicitud';
+    }
+    
+    res.status(statusCode).json({ 
+      success: false,
+      error: errorMessage,
+      code: errorCode,
+      timestamp: new Date().toISOString()
+    });
   }
 });
 

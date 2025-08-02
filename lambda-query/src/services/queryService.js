@@ -167,25 +167,62 @@ async function getTableMetadata(tableName, requestId) {
  */
 async function getCsvFiles(tableName, requestId) {
   try {
+    // Primero obtener los metadatos de la tabla para conocer los archivos
     const params = {
-      Bucket: RAW_BUCKET,
-      Prefix: `${tableName}/`,
-      MaxKeys: 1000
+      TableName: DDB_TABLE,
+      FilterExpression: 'tableName = :tableName AND (#st = :completed OR #st = :pending)',
+      ExpressionAttributeValues: {
+        ':tableName': tableName,
+        ':completed': 'completed',
+        ':pending': 'pending'
+      },
+      ExpressionAttributeNames: {
+        '#st': 'status'
+      }
     };
 
-    const result = await s3.listObjectsV2(params).promise();
+    const result = await dynamodb.scan(params).promise();
     
-    if (!result.Contents || result.Contents.length === 0) {
+    if (!result.Items || result.Items.length === 0) {
+      logger.info('No se encontraron archivos disponibles para la tabla', {
+        requestId,
+        tableName
+      });
       return [];
     }
+
+    // Obtener todos los archivos CSV desde S3 usando las rutas de DynamoDB
+    const csvFiles = [];
     
-    const csvFiles = result.Contents
-      .filter(obj => obj.Key.endsWith('.csv'))
-      .map(obj => ({
-        key: obj.Key,
-        size: obj.Size,
-        lastModified: obj.LastModified
-      }));
+    for (const item of result.Items) {
+      if (item.s3Key && item.s3Key.endsWith('.csv')) {
+        try {
+          // Verificar que el archivo existe en S3
+          const headParams = {
+            Bucket: RAW_BUCKET,
+            Key: item.s3Key
+          };
+          
+          const headResult = await s3.headObject(headParams).promise();
+          
+          csvFiles.push({
+            key: item.s3Key,
+            size: headResult.ContentLength,
+            lastModified: headResult.LastModified,
+            fileId: item.fileId,
+            tableName: item.tableName,
+            directory: item.directory
+          });
+        } catch (headError) {
+          logger.warn('Archivo no encontrado en S3', {
+            requestId,
+            tableName,
+            s3Key: item.s3Key,
+            error: headError.message
+          });
+        }
+      }
+    }
 
     logger.info('Archivos CSV encontrados', {
       requestId,

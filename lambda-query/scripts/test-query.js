@@ -62,16 +62,16 @@ async function testQueryFunction() {
   }
   console.log('');
 
-  // Test 3: Ejecutar Query (requiere archivos Parquet reales)
-  console.log('📋 Test 3: Ejecutar Query (requiere archivos Parquet)');
-  console.log('   ⚠️  Este test requiere archivos Parquet reales en S3');
-  console.log('   💡 Ejecuta: node scripts/test-parquet-query.js para pruebas completas');
+  // Test 3: Ejecutar Query (requiere archivos CSV reales)
+  console.log('📋 Test 3: Ejecutar Query (requiere archivos CSV)');
+  console.log('   ⚠️  Este test requiere archivos CSV reales en S3');
+  console.log('   💡 Ejecuta: node scripts/test-csv-query.js para pruebas completas');
   console.log('');
 
-  // Test 4: Query con COUNT (requiere archivos Parquet reales)
-  console.log('📋 Test 4: Query con COUNT (requiere archivos Parquet)');
-  console.log('   ⚠️  Este test requiere archivos Parquet reales en S3');
-  console.log('   💡 Ejecuta: node scripts/test-parquet-query.js para pruebas completas');
+  // Test 4: Query con COUNT (requiere archivos CSV reales)
+  console.log('📋 Test 4: Query con COUNT (requiere archivos CSV)');
+  console.log('   ⚠️  Este test requiere archivos CSV reales en S3');
+  console.log('   💡 Ejecuta: node scripts/test-csv-query.js para pruebas completas');
   console.log('');
 
   // Test 5: Error - Query inválida

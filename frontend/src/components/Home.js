@@ -1,80 +1,167 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { FaUpload, FaSearch, FaDatabase, FaChartLine } from 'react-icons/fa';
+import { FaUpload, FaSearch, FaDatabase, FaChartLine, FaRocket, FaCloudUploadAlt, FaBolt } from 'react-icons/fa';
 
 function Home() {
   return (
-    <div>
-      <div className="hero-section">
-        <h1>Pipeline de Datos</h1>
-        <p>Gestiona, ingesta y consulta tus datos de manera eficiente</p>
-        
-        <div className="action-buttons">
-          <Link to="/ingestor" className="action-button btn-ingestor">
-            <FaUpload />
-            Ingestor de Datos
-          </Link>
-          <Link to="/queries" className="action-button btn-queries">
-            <FaSearch />
-            Consultas
-          </Link>
+    <div className="animate-fadeIn">
+      {/* Header con logos */}
+      <div className="hero-header">
+        <div className="logos-container">
+          <img src="/assets/immune.png" alt="Immune" className="logo logo-immune" />
+          <div className="divider"></div>
+          <img src="/assets/aws_academy.png" alt="AWS Academy" className="logo logo-aws" />
         </div>
       </div>
 
-      <div className="row">
-        <div className="col-md-6 mb-4">
-          <div className="feature-card">
-            <div className="feature-icon">
-              <FaUpload />
-            </div>
-            <h3>Ingesta de Datos</h3>
-            <p>
-              Sube archivos CSV, define esquemas personalizados y procesa tus datos
-              de manera eficiente. Nuestro sistema detecta automáticamente la estructura
-              de tus archivos y te permite modificarla antes de la ingesta.
-            </p>
-          </div>
+      {/* Hero Section Modernizada */}
+      <div className="hero-section-modern">
+        <div className="hero-background">
+          <div className="hero-gradient"></div>
+          <div className="hero-pattern"></div>
         </div>
         
-        <div className="col-md-6 mb-4">
-          <div className="feature-card">
-            <div className="feature-icon">
-              <FaSearch />
+        <div className="hero-content">
+          <div className="hero-badge">
+            <FaRocket className="hero-badge-icon" />
+            <span>AWS Data Pipeline Platform</span>
+          </div>
+          
+          <h1 className="hero-title">
+            Plataforma de <span className="text-gradient">Datos</span> Inteligente
+          </h1>
+          
+          <p className="hero-description">
+            Transforma tus datos con nuestra plataforma moderna de ingesta y análisis. 
+            Sube, procesa y consulta archivos CSV con potencia de AWS y simplicidad de un click.
+          </p>
+          
+          <div className="hero-actions">
+            <Link to="/ingestor" className="cta-button cta-primary">
+              <FaCloudUploadAlt className="cta-icon" />
+              <span className="cta-text">
+                <strong>Ingestar Datos</strong>
+                <small>Sube y procesa tus archivos</small>
+              </span>
+            </Link>
+            
+            <Link to="/queries" className="cta-button cta-secondary">
+              <FaBolt className="cta-icon" />
+              <span className="cta-text">
+                <strong>Consultar</strong>
+                <small>Analiza con SQL inteligente</small>
+              </span>
+            </Link>
+          </div>
+          
+          <div className="hero-stats">
+            <div className="stat">
+              <div className="stat-number">100%</div>
+              <div className="stat-label">Serverless</div>
             </div>
-            <h3>Consultas Inteligentes</h3>
-            <p>
-              Explora tus datos con consultas SQL intuitivas. Visualiza esquemas,
-              ejecuta queries complejas y obtén resultados en tiempo real.
-              Todo desde una interfaz web moderna y fácil de usar.
-            </p>
+            <div className="stat">
+              <div className="stat-number">~5s</div>
+              <div className="stat-label">Tiempo de procesamiento</div>
+            </div>
+            <div className="stat">
+              <div className="stat-number">SQL</div>
+              <div className="stat-label">Consultas nativas</div>
+            </div>
           </div>
         </div>
+      </div>
+
+      {/* Features Section Modernizada */}
+      <div className="features-section">
+        <div className="features-header">
+          <h2 className="features-title">¿Por qué elegir nuestra plataforma?</h2>
+          <p className="features-subtitle">Tecnología de vanguardia para el análisis de datos moderno</p>
+        </div>
         
-        <div className="col-md-6 mb-4">
-          <div className="feature-card">
-            <div className="feature-icon">
+        <div className="features-grid">
+          <div className="feature-card-modern animate-slideIn">
+            <div className="feature-icon-modern feature-upload">
+              <FaCloudUploadAlt />
+            </div>
+            <div className="feature-content">
+              <h3>Ingesta Inteligente</h3>
+              <p>
+                Sistema de drag & drop con detección automática de esquemas CSV. 
+                Validación en tiempo real y configuración flexible de tipos de datos.
+              </p>
+              <div className="feature-tags">
+                <span className="tag">Auto Schema</span>
+                <span className="tag">Drag & Drop</span>
+                <span className="tag">Validation</span>
+              </div>
+            </div>
+          </div>
+          
+          <div className="feature-card-modern animate-slideIn" style={{ animationDelay: '0.1s' }}>
+            <div className="feature-icon-modern feature-query">
+              <FaBolt />
+            </div>
+            <div className="feature-content">
+              <h3>SQL Lightning</h3>
+              <p>
+                Motor SQL ultrarrápido sobre SQLite. Consultas complejas, joins, 
+                agregaciones y filtros con rendimiento optimizado.
+              </p>
+              <div className="feature-tags">
+                <span className="tag">Sub-segundo</span>
+                <span className="tag">SQL Completo</span>
+                <span className="tag">Joins</span>
+              </div>
+            </div>
+          </div>
+          
+          <div className="feature-card-modern animate-slideIn" style={{ animationDelay: '0.2s' }}>
+            <div className="feature-icon-modern feature-storage">
               <FaDatabase />
             </div>
-            <h3>Almacenamiento Optimizado</h3>
-            <p>
-              Tus datos se almacenan en formato CSV para consultas rápidas
-              y eficientes. Además, el sistema mantiene un catálogo de metadatos
-              para facilitar la gestión y búsqueda de tus archivos.
-            </p>
+            <div className="feature-content">
+              <h3>Almacenamiento AWS</h3>
+              <p>
+                S3 + DynamoDB para máxima durabilidad y disponibilidad. 
+                Catálogo de metadatos automático y versionado de archivos.
+              </p>
+              <div className="feature-tags">
+                <span className="tag">99.9% Uptime</span>
+                <span className="tag">S3 + DDB</span>
+                <span className="tag">Metadata</span>
+              </div>
+            </div>
+          </div>
+          
+          <div className="feature-card-modern animate-slideIn" style={{ animationDelay: '0.3s' }}>
+            <div className="feature-icon-modern feature-processing">
+              <FaRocket />
+            </div>
+            <div className="feature-content">
+              <h3>Serverless ETL</h3>
+              <p>
+                Procesamiento automático con AWS Lambda. Escalado automático, 
+                sin servidores que mantener, pago solo por uso.
+              </p>
+              <div className="feature-tags">
+                <span className="tag">Auto-scale</span>
+                <span className="tag">Pay-per-use</span>
+                <span className="tag">Lambda</span>
+              </div>
+            </div>
           </div>
         </div>
-        
-        <div className="col-md-6 mb-4">
-          <div className="feature-card">
-            <div className="feature-icon">
-              <FaChartLine />
-            </div>
-            <h3>Procesamiento Automático</h3>
-            <p>
-              El sistema procesa automáticamente tus archivos CSV y actualiza el catálogo de metadatos. Todo el proceso
-              es transparente y eficiente.
-            </p>
-          </div>
+      </div>
+      
+      {/* Call to Action Final */}
+      <div className="cta-section">
+        <div className="cta-content">
+          <h2>¿Listo para transformar tus datos?</h2>
+          <p>Únete a la próxima generación de análisis de datos con tecnología AWS</p>
+          <Link to="/ingestor" className="cta-button cta-large">
+            <FaRocket className="cta-icon" />
+            Comenzar Ahora
+          </Link>
         </div>
       </div>
     </div>

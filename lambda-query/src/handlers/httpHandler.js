@@ -1,6 +1,6 @@
 /**
  * Manejador HTTP para la función Lambda Query
- * Procesa requests HTTP y ejecuta consultas SQL sobre archivos Parquet
+ * Procesa requests HTTP y ejecuta consultas SQL sobre archivos CSV
  * @module lambda-query/handlers/httpHandler
  */
 
