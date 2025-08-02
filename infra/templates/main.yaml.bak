@@ -95,7 +95,6 @@ Resources:
         LambdaTimeout: !Ref LambdaTimeout
         S3BucketRawName: !GetAtt StorageStack.Outputs.S3BucketRawName
         DynamoDBTableName: !GetAtt StorageStack.Outputs.DynamoDBTableName
-        S3BucketCodeName: !Sub "${AWS::AccountId}-lambda-code-${AWS::Region}"
       Tags:
         - Key: Name
           Value: !Sub ${AWS::StackName}-Lambda
@@ -119,7 +118,6 @@ Resources:
         S3BucketRaw: !GetAtt StorageStack.Outputs.S3BucketRawName
         S3BucketLogs: !GetAtt StorageStack.Outputs.S3BucketLogsName
         DDBTableName: !GetAtt StorageStack.Outputs.DynamoDBTableName
-        LambdaQueryFunctionName: !GetAtt LambdaStack.Outputs.LambdaQueryFunctionName
         LambdaETLFunctionName: !GetAtt LambdaStack.Outputs.LambdaETLFunctionName
       Tags:
         - Key: Name
@@ -167,12 +165,6 @@ Outputs:
       Name: !Sub ${AWS::StackName}-DDB-Table-ARN
 
   # Lambda Outputs
-  LambdaQueryURL:
-    Description: URL pública de la función Lambda Query
-    Value: !GetAtt LambdaStack.Outputs.LambdaQueryURL
-    Export:
-      Name: !Sub ${AWS::StackName}-Query-URL
-
   LambdaETLURL:
     Description: URL pública de la función Lambda ETL
     Value: !GetAtt LambdaStack.Outputs.LambdaETLURL
@@ -184,12 +176,6 @@ Outputs:
     Value: !GetAtt LambdaStack.Outputs.LambdaETLFunctionName
     Export:
       Name: !Sub ${AWS::StackName}-ETL-Function
-
-  LambdaQueryFunctionName:
-    Description: Nombre de la función Lambda Query
-    Value: !GetAtt LambdaStack.Outputs.LambdaQueryFunctionName
-    Export:
-      Name: !Sub ${AWS::StackName}-Query-Function
 
   # WebApp Outputs
   WebAppInstanceId:
@@ -222,11 +208,7 @@ Outputs:
     Export:
       Name: !Sub ${AWS::StackName}-ETL-Function-ARN
 
-  LambdaQueryFunctionArn:
-    Description: ARN de la función Lambda Query
-    Value: !GetAtt LambdaStack.Outputs.LambdaQueryFunctionArn
-    Export:
-      Name: !Sub ${AWS::StackName}-Query-Function-ARN
+
 
   # Stack Information
   StackInfo:

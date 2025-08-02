@@ -454,7 +454,7 @@ app.post('/api/query', async (req, res) => {
     const startTime = Date.now();
 
     console.log('[INFO] Procesando consulta SQL en backend:', {
-      query: query?.substring(0, 100) + (query?.length > 100 ? '...' : ''),
+      query: query ? (query.substring(0, 100) + (query.length > 100 ? '...' : '')) : 'undefined',
       tableName
     });
 
