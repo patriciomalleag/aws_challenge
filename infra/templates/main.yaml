@@ -95,7 +95,7 @@ Resources:
         LabRoleArn: !Ref LabRoleArn
         VPCId: !GetAtt NetworkStack.Outputs.VPCId
         PublicSubnetId: !GetAtt NetworkStack.Outputs.PublicSubnetId
-        InstanceType: t3.small
+        InstanceType: t3.medium
         S3BucketRaw: !GetAtt StorageStack.Outputs.S3BucketRawName
         S3BucketLogs: !GetAtt StorageStack.Outputs.S3BucketLogsName
         DDBTableName: !GetAtt StorageStack.Outputs.DynamoDBTableName
