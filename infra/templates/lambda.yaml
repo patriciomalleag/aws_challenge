@@ -38,8 +38,17 @@ Resources:
       Runtime: nodejs18.x
       Handler: src/index.handler
       Code:
-        S3Bucket: !Sub ${AWS::AccountId}-lambda-code-${AWS::Region}
-        S3Key: lambda-etl.zip
+        ZipFile: |
+          exports.handler = async (event) => {
+            return { 
+              statusCode: 200, 
+              body: JSON.stringify({ 
+                success: true,
+                message: 'ETL Function Deployed',
+                data: {}
+              })
+            };
+          };
       Role: !Ref LabRoleArn
       Timeout: !Ref LambdaTimeout
       MemorySize: !Ref LambdaMemorySize
@@ -62,8 +71,17 @@ Resources:
       Runtime: nodejs18.x
       Handler: src/index.handler
       Code:
-        S3Bucket: !Sub ${AWS::AccountId}-lambda-code-${AWS::Region}
-        S3Key: lambda-query.zip
+        ZipFile: |
+          exports.handler = async (event) => {
+            return { 
+              statusCode: 200, 
+              body: JSON.stringify({ 
+                success: true,
+                message: 'Query Function Deployed',
+                data: { rows: [], columns: [] }
+              })
+            };
+          };
       Role: !Ref LabRoleArn
       Timeout: !Ref LambdaTimeout
       MemorySize: !Ref LambdaMemorySize

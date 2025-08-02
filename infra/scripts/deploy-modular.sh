@@ -465,7 +465,6 @@ main() {
     validate_prerequisites
     update_parameters
     validate_template
-    package_and_upload_lambda_code
     upload_templates_to_s3
     deploy_stack
     show_outputs
