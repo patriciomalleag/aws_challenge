@@ -147,52 +147,8 @@ function Queries() {
         resultsLength: response.data.data ? response.data.data.length : 0
       });
       
-      // DEBUG: Logs adicionales para diagnosticar el problema
-      console.log('[DEBUG-FRONTEND] Respuesta completa:', response);
-      console.log('[DEBUG-FRONTEND] response.data completo:', response.data);
-      console.log('[DEBUG-FRONTEND] response.data tipo:', typeof response.data);
-      console.log('[DEBUG-FRONTEND] response.data.data:', response.data.data);
-      console.log('[DEBUG-FRONTEND] response.data.data tipo:', typeof response.data.data);
-      console.log('[DEBUG-FRONTEND] response.data.data es array:', Array.isArray(response.data.data));
-      
-      // Estructura de respuesta correcta del lambda:
-      // { success: true, data: [array], executionTime: number, rowCount: number, requestId: string }
-      // Por lo tanto, los datos reales están en response.data.data, no en response.data.data.data
-      const actualData = response.data.data;
-      
-      if (actualData && Array.isArray(actualData)) {
-        console.log('[DEBUG-FRONTEND] Primeros elementos de actualData:', actualData.slice(0, 2));
-      } else {
-        console.log('[DEBUG-FRONTEND] actualData no es array o es undefined:', actualData);
-      }
-
-      // Normalizar la estructura de datos para manejar tanto la respuesta actual como la corregida
-      let normalizedResults = { ...response.data };
-      
-      // Si la respuesta tiene la estructura antigua { data: { rows: [], columns: [] } }
-      if (response.data.data && response.data.data.rows && Array.isArray(response.data.data.rows)) {
-        console.log('[DEBUG-FRONTEND] Detectada estructura antigua con rows/columns');
-        normalizedResults.data = response.data.data.rows;
-      }
-      // Si la respuesta ya tiene la estructura correcta { data: [array] }
-      else if (response.data.data && Array.isArray(response.data.data)) {
-        console.log('[DEBUG-FRONTEND] Detectada estructura correcta con array directo');
-        normalizedResults.data = response.data.data;
-      }
-      // Si no hay datos
-      else {
-        console.log('[DEBUG-FRONTEND] No se detectaron datos válidos');
-        normalizedResults.data = [];
-      }
-      
-      console.log('[DEBUG-FRONTEND] Datos normalizados:', {
-        originalData: response.data.data,
-        normalizedData: normalizedResults.data,
-        isArray: Array.isArray(normalizedResults.data),
-        length: normalizedResults.data?.length || 0
-      });
-      
-      setResults(normalizedResults);
+      // El backend ahora devuelve directamente: { success: true, data: [array], executionTime: number, rowCount: number }
+      setResults(response.data);
       toast.success('Consulta ejecutada correctamente');
     } catch (error) {
       console.error('[FRONTEND-QUERIES] Error ejecutando consulta:', error);

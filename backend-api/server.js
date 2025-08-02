@@ -20,7 +20,6 @@ const dynamodb = new AWS.DynamoDB.DocumentClient();
 // Configuración de buckets y tabla
 const RAW_BUCKET = process.env.S3_BUCKET_RAW || 'data-pipeline-raw-ACCOUNT_ID';
 const DDB_TABLE = process.env.DDB_TABLE_NAME || 'datasets-catalog';
-const LAMBDA_QUERY_FUNCTION_NAME = process.env.LAMBDA_QUERY_FUNCTION_NAME || 'data-pipeline-query-function';
 const LAMBDA_ETL_FUNCTION_NAME = process.env.LAMBDA_ETL_FUNCTION_NAME || 'data-pipeline-etl-function';
 
 // Middleware
@@ -448,154 +447,127 @@ app.get('/api/schema/:tableName', async (req, res) => {
   }
 });
 
-// Ejecutar consulta SQL
+// Ejecutar consulta SQL directamente en el backend
 app.post('/api/query', async (req, res) => {
   try {
     const { query, tableName } = req.body;
+    const startTime = Date.now();
 
+    console.log('[INFO] Procesando consulta SQL en backend:', {
+      query: query?.substring(0, 100) + (query?.length > 100 ? '...' : ''),
+      tableName
+    });
+
+    // Validaciones básicas
     if (!query || !query.trim()) {
-      return res.status(400).json({ error: 'Query es requerida' });
-    }
-
-    // Validar que la query sea una consulta SELECT válida
-    const sanitizedQuery = query.trim().toLowerCase();
-    
-    // Verificar que la consulta empiece con SELECT
-    if (!sanitizedQuery.startsWith('select')) {
       return res.status(400).json({ 
-        error: 'Solo se permiten consultas SELECT',
-        code: 'INVALID_SQL_QUERY'
+        success: false,
+        error: 'Query es requerida' 
       });
     }
-    
-    // Verificar que no contenga palabras clave peligrosas
-    const dangerousKeywords = [
-      'drop', 'delete', 'update', 'insert', 'create', 'alter', 
-      'truncate', 'exec', 'execute', 'declare', 'merge', 
-      'replace', 'grant', 'revoke', 'commit', 'rollback'
-    ];
-    
-    for (const keyword of dangerousKeywords) {
-      if (sanitizedQuery.includes(keyword)) {
-        return res.status(400).json({ 
-          error: `Palabra clave no permitida: ${keyword}`,
-          code: 'INVALID_SQL_QUERY'
-        });
-      }
-    }
-    
-    // Validar que tenga un nombre de tabla
+
     if (!tableName || !tableName.trim()) {
       return res.status(400).json({ 
-        error: 'Nombre de tabla es requerido',
-        code: 'VALIDATION_ERROR'
+        success: false,
+        error: 'Nombre de tabla es requerido' 
       });
     }
 
-    // Configurar parámetros para la Lambda Query
-    const lambdaParams = {
-      FunctionName: LAMBDA_QUERY_FUNCTION_NAME,
-      InvocationType: 'RequestResponse',
-      Payload: JSON.stringify({
-        httpMethod: 'POST',
-        path: '/query',
-        body: JSON.stringify({
-          query: query.trim(),
-          tableName: tableName
-        }),
-        headers: {
-          'Content-Type': 'application/json'
-        }
-      })
+    // Validar que sea SELECT
+    const sanitizedQuery = query.trim().toLowerCase();
+    if (!sanitizedQuery.startsWith('select')) {
+      return res.status(400).json({ 
+        success: false,
+        error: 'Solo se permiten consultas SELECT' 
+      });
+    }
+
+    // Buscar archivos CSV de la tabla en DynamoDB
+    const params = {
+      TableName: DDB_TABLE,
+      FilterExpression: 'tableName = :tableName',
+      ExpressionAttributeValues: {
+        ':tableName': tableName
+      }
     };
 
-    const lambda = new AWS.Lambda();
-    const lambdaResponse = await lambda.invoke(lambdaParams).promise();
-
-    if (lambdaResponse.StatusCode !== 200) {
-      throw new Error('Error en la función Lambda');
-    }
-
-    const responsePayload = JSON.parse(lambdaResponse.Payload);
+    const catalogResult = await dynamodb.scan(params).promise();
     
-    if (responsePayload.statusCode >= 400) {
-      let errorBody;
-      try {
-        errorBody = JSON.parse(responsePayload.body);
-      } catch (parseError) {
-        console.error('[ERROR] Error parseando body de error de Lambda:', parseError.message);
-        return res.status(500).json({
-          success: false,
-          error: 'Error interno procesando la consulta',
-          code: 'INTERNAL_ERROR'
-        });
-      }
-      
-      return res.status(responsePayload.statusCode).json({
+    if (!catalogResult.Items || catalogResult.Items.length === 0) {
+      return res.status(404).json({
         success: false,
-        error: errorBody.error || 'Error al ejecutar la consulta',
-        code: errorBody.code || 'QUERY_ERROR',
-        requestId: errorBody.requestId,
-        timestamp: errorBody.timestamp
+        error: `No se encontraron archivos para la tabla ${tableName}`
       });
     }
 
-    let resultBody;
-    try {
-      resultBody = JSON.parse(responsePayload.body);
-      
-      // Asegurar formato consistente de respuesta exitosa
-      if (resultBody.success !== false) {
-        resultBody.success = true;
-      }
-      res.json(resultBody);
-    } catch (parseError) {
-      console.error('[ERROR] Error parseando respuesta exitosa de Lambda:', parseError.message);
-      return res.status(500).json({
-        success: false,
-        error: 'Error procesando respuesta de la consulta',
-        code: 'INTERNAL_ERROR'
+    console.log('[INFO] Archivos encontrados:', catalogResult.Items.length);
+
+    // Leer el primer archivo CSV desde S3
+    const fileInfo = catalogResult.Items[0];
+    const s3Params = {
+      Bucket: RAW_BUCKET,
+      Key: fileInfo.s3Key
+    };
+
+    console.log('[INFO] Leyendo archivo CSV desde S3:', fileInfo.s3Key);
+    
+    const s3Object = await s3.getObject(s3Params).promise();
+    const csvContent = s3Object.Body.toString('utf-8');
+    
+    // Parsear CSV de forma simple
+    const lines = csvContent.split('\n').filter(line => line.trim());
+    if (lines.length === 0) {
+      return res.json({
+        success: true,
+        data: [],
+        message: 'Archivo CSV vacío'
       });
     }
+
+    // Primera línea son headers
+    const headers = lines[0].split(',').map(h => h.trim().replace(/"/g, ''));
+    const dataRows = lines.slice(1);
+
+    // Convertir a objetos
+    let data = dataRows.map(line => {
+      const values = line.split(',').map(v => v.trim().replace(/"/g, ''));
+      const obj = {};
+      headers.forEach((header, index) => {
+        obj[header] = values[index] || '';
+      });
+      return obj;
+    });
+
+    // Aplicar LIMIT si existe en la query
+    const limitMatch = query.match(/LIMIT\s+(\d+)/i);
+    if (limitMatch) {
+      const limit = parseInt(limitMatch[1]);
+      data = data.slice(0, limit);
+    }
+
+    const processingTime = Date.now() - startTime;
+
+    console.log('[INFO] Consulta procesada exitosamente:', {
+      resultRows: data.length,
+      processingTime
+    });
+
+    res.json({
+      success: true,
+      data: data,
+      executionTime: processingTime,
+      rowCount: data.length,
+      message: `Consulta ejecutada sobre ${tableName}`
+    });
 
   } catch (error) {
-    console.error('[ERROR] Error executing query:', error);
+    console.error('[ERROR] Error procesando consulta:', error);
     console.error('[ERROR] Stack trace:', error.stack);
-    console.error('[ERROR] Detalles adicionales:', JSON.stringify({
-      errorName: error.name,
-      errorCode: error.code,
-      errorMessage: error.message,
-      requestDetails: {
-        tableName: req.body.tableName,
-        queryLength: query ? query.length : 0,
-        functionName: LAMBDA_QUERY_FUNCTION_NAME
-      }
-    }));
     
-    // Determinar el tipo de error y responder apropiadamente
-    let statusCode = 500;
-    let errorCode = 'INTERNAL_ERROR';
-    let errorMessage = 'Error al ejecutar la consulta';
-    
-    if (error.code === 'ResourceNotFoundException') {
-      statusCode = 404;
-      errorCode = 'LAMBDA_NOT_FOUND';
-      errorMessage = 'Función Lambda no encontrada';
-    } else if (error.code === 'TooManyRequestsException') {
-      statusCode = 429;
-      errorCode = 'RATE_LIMIT_EXCEEDED';
-      errorMessage = 'Demasiadas solicitudes, intente más tarde';
-    } else if (error.code === 'InvalidParameterValueException') {
-      statusCode = 400;
-      errorCode = 'INVALID_PARAMETER';
-      errorMessage = 'Parámetros inválidos en la solicitud';
-    }
-    
-    res.status(statusCode).json({ 
+    res.status(500).json({
       success: false,
-      error: errorMessage,
-      code: errorCode,
-      timestamp: new Date().toISOString()
+      error: 'Error interno procesando la consulta',
+      details: error.message
     });
   }
 });
@@ -649,7 +621,6 @@ app.listen(PORT, () => {
   console.log(`- Bucket Raw: ${RAW_BUCKET}`);
   console.log(`- Tabla DynamoDB: ${DDB_TABLE}`);
   console.log(`- Lambda ETL: ${LAMBDA_ETL_FUNCTION_NAME}`);
-  console.log(`- Lambda Query: ${LAMBDA_QUERY_FUNCTION_NAME}`);
   console.log('=================================================');
 });
 

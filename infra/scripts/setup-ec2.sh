@@ -177,14 +177,12 @@ CF_AWS_REGION="${AWS_REGION:-us-east-1}"
 CF_S3_BUCKET_RAW="${S3_BUCKET_RAW:-data-pipeline-raw-unknown}"
 CF_S3_BUCKET_LOGS="${S3_BUCKET_LOGS:-data-pipeline-logs-unknown}"
 CF_DDB_TABLE_NAME="${DDB_TABLE_NAME:-datasets-catalog}"
-CF_LAMBDA_QUERY_FUNCTION_NAME="${LAMBDA_QUERY_FUNCTION_NAME:-data-pipeline-query-function}"
 CF_LAMBDA_ETL_FUNCTION_NAME="${LAMBDA_ETL_FUNCTION_NAME:-data-pipeline-etl-function}"
 
 log_message "Configurando backend con variables de CloudFormation:"
 log_message "  AWS_REGION: $CF_AWS_REGION"
 log_message "  S3_BUCKET_RAW: $CF_S3_BUCKET_RAW"
 log_message "  DDB_TABLE_NAME: $CF_DDB_TABLE_NAME"
-log_message "  LAMBDA_QUERY_FUNCTION_NAME: $CF_LAMBDA_QUERY_FUNCTION_NAME"
 log_message "  LAMBDA_ETL_FUNCTION_NAME: $CF_LAMBDA_ETL_FUNCTION_NAME"
 
 cat > /etc/systemd/system/aws-challenge-backend.service << EOF
@@ -205,7 +203,6 @@ Environment=AWS_REGION=$CF_AWS_REGION
 Environment=S3_BUCKET_RAW=$CF_S3_BUCKET_RAW
 Environment=S3_BUCKET_LOGS=$CF_S3_BUCKET_LOGS
 Environment=DDB_TABLE_NAME=$CF_DDB_TABLE_NAME
-Environment=LAMBDA_QUERY_FUNCTION_NAME=$CF_LAMBDA_QUERY_FUNCTION_NAME
 Environment=LAMBDA_ETL_FUNCTION_NAME=$CF_LAMBDA_ETL_FUNCTION_NAME
 
 [Install]
@@ -270,9 +267,8 @@ cat > "$WEB_DIR/status.html" << EOF
             <h3>📁 Estructura del proyecto:</h3>
             <ul>
                 <li>📁 frontend/ - Aplicación React</li>
-                <li>📁 backend-api/ - API Node.js</li>
+                <li>📁 backend-api/ - API Node.js (procesa queries SQL)</li>
                 <li>📁 lambda-etl/ - Función Lambda ETL</li>
-                <li>📁 lambda-query/ - Función Lambda Query</li>
                 <li>📁 infra/ - Infraestructura CloudFormation</li>
                 <li>📁 shared/ - Utilidades compartidas</li>
             </ul>

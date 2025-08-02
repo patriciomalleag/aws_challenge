@@ -146,58 +146,7 @@ update_parameters() {
     log_success "Parámetros actualizados con valores dinámicos"
 }
 
-# Función simple para subir código Lambda pre-empaquetado a S3
-package_and_upload_lambda_code() {
-    log_info "Subiendo código Lambda pre-empaquetado a S3..."
-    
-    # Obtener Account ID y crear nombres de bucket
-    ACCOUNT_ID=$(get_account_id)
-    LAMBDA_CODE_BUCKET="$ACCOUNT_ID-lambda-code-$REGION"
-    
-    # Crear bucket para código Lambda si no existe
-    if ! aws s3 ls "s3://$LAMBDA_CODE_BUCKET" >/dev/null 2>&1; then
-        log_info "Creando bucket para código Lambda: $LAMBDA_CODE_BUCKET"
-        aws s3 mb "s3://$LAMBDA_CODE_BUCKET" --region $REGION
-        aws s3api put-bucket-encryption \
-            --bucket "$LAMBDA_CODE_BUCKET" \
-            --server-side-encryption-configuration '{
-                "Rules": [
-                    {
-                        "ApplyServerSideEncryptionByDefault": {
-                            "SSEAlgorithm": "AES256"
-                        }
-                    }
-                ]
-            }'
-    fi
-    
-    # Directorio donde están los ZIPs pre-empaquetados
-    LAMBDA_ZIPS_DIR="../lambda-zips"
-    
-    # Verificar que existan los ZIPs
-    if [[ ! -f "$LAMBDA_ZIPS_DIR/lambda-etl.zip" ]]; then
-        log_error "❌ No se encuentra lambda-etl.zip en $LAMBDA_ZIPS_DIR"
-        log_info "💡 Ejecuta primero: ./prepare-lambda-zips.sh"
-        exit 1
-    fi
-    
-    if [[ ! -f "$LAMBDA_ZIPS_DIR/lambda-query.zip" ]]; then
-        log_error "❌ No se encuentra lambda-query.zip en $LAMBDA_ZIPS_DIR"
-        log_info "💡 Ejecuta primero: ./prepare-lambda-zips.sh"
-        exit 1
-    fi
-    
-    # Subir ZIPs a S3
-    log_info "📤 Subiendo lambda-etl.zip..."
-    aws s3 cp "$LAMBDA_ZIPS_DIR/lambda-etl.zip" "s3://$LAMBDA_CODE_BUCKET/lambda-etl.zip"
-    log_success "lambda-etl.zip subido exitosamente"
-    
-    log_info "📤 Subiendo lambda-query.zip..."
-    aws s3 cp "$LAMBDA_ZIPS_DIR/lambda-query.zip" "s3://$LAMBDA_CODE_BUCKET/lambda-query.zip"
-    log_success "lambda-query.zip subido exitosamente"
-    
-    log_success "✅ Código Lambda pre-empaquetado subido exitosamente"
-}
+
 
 # Función para subir templates a S3
 upload_templates_to_s3() {
@@ -437,7 +386,6 @@ main() {
     validate_prerequisites
     update_parameters
     validate_template
-    package_and_upload_lambda_code  # ← AÑADIDO: Subir ZIPs de Lambda
     upload_templates_to_s3
     deploy_stack
     show_outputs

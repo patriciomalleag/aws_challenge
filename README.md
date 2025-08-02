@@ -10,12 +10,14 @@ Una aplicación web completa para la ingesta y consulta de datos, construida con
    - Interfaz web moderna y responsiva
    - Ingestor de archivos CSV con detección automática de esquemas
    - Visualización de archivos cargados
-   - Interfaz de consultas (próximamente)
+   - **Interfaz de consultas SQL funcionando**
 
 2. **Backend API (Node.js/Express)**
    - API REST para gestión de archivos
    - Subida de archivos CSV a S3
    - Gestión de metadatos en DynamoDB
+   - **Procesamiento de consultas SQL directamente**
+   - Lectura de CSVs desde S3 para queries
    - Integración con servicios AWS
 
 3. **Infraestructura AWS**
@@ -43,6 +45,14 @@ Una aplicación web completa para la ingesta y consulta de datos, construida con
 - ✅ Almacenamiento optimizado en bucket curated
 - ✅ Actualización automática del catálogo de metadatos
 - ✅ Procesamiento serverless con Lambda
+
+### **Motor de Consultas SQL:**
+
+- ✅ Ejecutar consultas SELECT sobre datos CSV
+- ✅ Soporte para LIMIT, filtros básicos
+- ✅ Procesamiento directo en el backend (sin Lambda Query)
+- ✅ Lectura directa desde S3 Raw
+- ✅ Visualización de resultados en tiempo real
 
 ### **Infraestructura:**
 
@@ -102,14 +112,15 @@ aws_challenge/
 │   ├── src/
 │   │   ├── components/      # Componentes React
 │   │   │   ├── Home.js      # Página principal
-│   │   │   └── Ingestor.js  # Ingestor de datos
+│   │   │   ├── Ingestor.js  # Ingestor de datos
+│   │   │   └── Queries.js   # Motor de consultas SQL
 │   │   ├── App.js           # Componente principal
 │   │   └── index.js         # Punto de entrada
 │   └── package.json
 ├── backend-api/             # API Node.js/Express
-│   ├── server.js            # Servidor principal
+│   ├── server.js            # Servidor principal (incluye motor SQL)
 │   └── package.json
-├── lambda-etl/              # Lambda ETL
+├── lambda-etl/              # Lambda ETL (solo procesamiento)
 │   ├── src/
 │   │   ├── handlers/        # Manejadores de eventos
 │   │   ├── services/        # Servicios de negocio
@@ -138,10 +149,10 @@ Usuario → Frontend → Backend API → S3 Raw → Lambda ETL → S3 Curated + 
 S3 Event → Lambda ETL → CSV → Parquet → S3 Curated → Actualizar DynamoDB
 ```
 
-### **3. Consultas (Próximamente):**
+### **3. Consultas SQL:**
 
 ```bash
-Usuario → Frontend → Lambda Query → S3 Curated → Resultados
+Usuario → Frontend → Backend API → S3 Raw → Resultados
 ```
 
 ## 🎯 **Uso de la Aplicación**
@@ -150,6 +161,17 @@ Usuario → Frontend → Lambda Query → S3 Curated → Resultados
 
 - Dos botones principales: "Ingestor de Datos" y "Consultas"
 - Información sobre las funcionalidades del sistema
+
+### **Vista Consultas SQL:**
+
+1. **Seleccionar Tabla**: Dropdown con tablas disponibles
+2. **Editor SQL**: Escribir consultas SELECT con soporte para:
+   - `SELECT * FROM "tabla"`
+   - `SELECT columna1, columna2 FROM "tabla"`
+   - `SELECT * FROM "tabla" LIMIT 10`
+3. **Ejecutar Consulta**: Botón para procesar la query
+4. **Resultados**: Tabla con datos obtenidos del CSV
+5. **Información**: Tiempo de ejecución y número de filas
 
 ### **Vista Ingestor de Datos:**
 
@@ -162,11 +184,20 @@ Usuario → Frontend → Lambda Query → S3 Curated → Resultados
 
 ### **Proceso Automático:**
 
+**Para Ingesta:**
 1. El archivo se sube al bucket S3 Raw
 2. Se guarda el esquema en DynamoDB
 3. Lambda ETL se activa automáticamente
 4. Convierte CSV a Parquet y lo guarda en bucket Curated
 5. Actualiza el estado en DynamoDB
+
+**Para Consultas:**
+1. Usuario selecciona tabla y escribe query SQL
+2. Frontend envía consulta al Backend API
+3. Backend busca archivos en DynamoDB
+4. Backend lee CSV directamente desde S3 Raw
+5. Backend parsea y filtra datos según la query
+6. Frontend muestra resultados en tiempo real
 
 ## 🔧 **Configuración Avanzada**
 
@@ -179,6 +210,7 @@ AWS_REGION=us-east-1
 S3_BUCKET_RAW=data-pipeline-raw-ACCOUNT_ID
 S3_BUCKET_CURATED=data-pipeline-curated-ACCOUNT_ID
 DDB_TABLE_NAME=datasets-catalog
+LAMBDA_ETL_FUNCTION_NAME=data-pipeline-etl-function
 ```
 
 ### **Permisos IAM Requeridos:**
@@ -234,7 +266,7 @@ aws ec2 describe-instances --filters "Name=tag:Project,Values=data-pipeline"
 
 ## 📄 **Licencia**
 
-Este proyecto es parte del AWS Academy Challenge y está diseñado para fines educativos.
+Este proyecto está bajo la licencia MIT. Ver archivo `LICENSE` para más detalles.
 
 ## 👥 **Contribución**
 
@@ -248,4 +280,4 @@ Para contribuir al proyecto:
 
 ---
 
-**Desarrollado para MCDS de IMMUNE usando AWS Academy Learner Lab** 🚀
+**Desarrollado para el MCDS de IMMUNE usando AWS Academy Learner Lab** 🚀

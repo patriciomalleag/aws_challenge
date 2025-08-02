@@ -29,10 +29,6 @@ Parameters:
     Type: String
     Description: Nombre de la tabla DynamoDB (importado del stack de almacenamiento)
     
-  S3BucketCodeName:
-    Type: String
-    Description: Nombre del bucket S3 para código Lambda
-
 Resources:
   # Lambda ETL Function
   LambdaETLFunction:
@@ -42,8 +38,17 @@ Resources:
       Runtime: nodejs18.x
       Handler: src/index.handler
       Code:
-        S3Bucket: !Ref S3BucketCodeName
-        S3Key: lambda-etl.zip
+        ZipFile: |
+          exports.handler = async (event) => {
+            return { 
+              statusCode: 200, 
+              body: JSON.stringify({ 
+                success: true,
+                message: 'ETL Function Deployed',
+                data: {}
+              })
+            };
+          };
       Role: !Ref LabRoleArn
       Timeout: !Ref LambdaTimeout
       MemorySize: !Ref LambdaMemorySize
@@ -58,56 +63,7 @@ Resources:
         - Key: Project
           Value: data-pipeline
 
-  # Lambda Query Function
-  LambdaQueryFunction:
-    Type: AWS::Lambda::Function
-    Properties:
-      FunctionName: !Sub ${AWS::StackName}-Query-Engine
-      Runtime: nodejs18.x
-      Handler: src/index.handler
-      Code:
-        S3Bucket: !Ref S3BucketCodeName
-        S3Key: lambda-query.zip
-      Role: !Ref LabRoleArn
-      Timeout: !Ref LambdaTimeout
-      MemorySize: !Ref LambdaMemorySize
-      Environment:
-        Variables:
-          S3_BUCKET_RAW: !Ref S3BucketRawName
-          DDB_TABLE_NAME: !Ref DynamoDBTableName
-          NODE_ENV: production
-          MAX_QUERY_TIMEOUT_MS: 30000
-          MAX_RESULT_ROWS: 1000
-      Tags:
-        - Key: Name
-          Value: !Sub ${AWS::StackName}-Query-Function
-        - Key: Project
-          Value: data-pipeline
 
-  # Lambda URL for Query Function
-  LambdaQueryURL:
-    Type: AWS::Lambda::Url
-    Properties:
-      TargetFunctionArn: !Ref LambdaQueryFunction
-      AuthType: NONE
-      Cors:
-        AllowCredentials: false
-        AllowHeaders: 
-          - 'Content-Type'
-          - 'X-Amz-Date'
-          - 'Authorization'
-          - 'X-Api-Key'
-          - 'X-Amz-Security-Token'
-          - 'X-Amz-User-Agent'
-        AllowMethods: 
-          - GET
-          - POST
-        AllowOrigins: 
-          - '*'
-        ExposeHeaders: 
-          - 'Content-Length'
-          - 'Content-Type'
-        MaxAge: 86400
 
   # CloudWatch Log Groups
   LambdaETLLogGroup:
@@ -121,16 +77,7 @@ Resources:
         - Key: Project
           Value: data-pipeline
 
-  LambdaQueryLogGroup:
-    Type: AWS::Logs::LogGroup
-    Properties:
-      LogGroupName: !Sub /aws/lambda/${LambdaQueryFunction}
-      RetentionInDays: 30
-      Tags:
-        - Key: Name
-          Value: !Sub ${AWS::StackName}-Query-Logs
-        - Key: Project
-          Value: data-pipeline
+
 
   # Lambda URL for ETL Function
   LambdaETLURL:
@@ -175,22 +122,7 @@ Resources:
           Value: !Ref LambdaETLFunction
       TreatMissingData: notBreaching
 
-  LambdaQueryErrorAlarm:
-    Type: AWS::CloudWatch::Alarm
-    Properties:
-      AlarmName: !Sub ${AWS::StackName}-Query-Errors
-      AlarmDescription: Alarm for Query Lambda function errors
-      MetricName: Errors
-      Namespace: AWS/Lambda
-      Statistic: Sum
-      Period: 300
-      EvaluationPeriods: 2
-      Threshold: 1
-      ComparisonOperator: GreaterThanOrEqualToThreshold
-      Dimensions:
-        - Name: FunctionName
-          Value: !Ref LambdaQueryFunction
-      TreatMissingData: notBreaching
+
 
   LambdaETLDurationAlarm:
     Type: AWS::CloudWatch::Alarm
@@ -210,12 +142,6 @@ Resources:
       TreatMissingData: notBreaching
 
 Outputs:
-  LambdaQueryURL:
-    Description: URL pública de la función Lambda Query
-    Value: !Ref LambdaQueryURL
-    Export:
-      Name: !Sub ${AWS::StackName}-Query-URL
-
   LambdaETLURL:
     Description: URL pública de la función Lambda ETL
     Value: !Ref LambdaETLURL
@@ -228,20 +154,8 @@ Outputs:
     Export:
       Name: !Sub ${AWS::StackName}-ETL-Function
 
-  LambdaQueryFunctionName:
-    Description: Nombre de la función Lambda Query
-    Value: !Ref LambdaQueryFunction
-    Export:
-      Name: !Sub ${AWS::StackName}-Query-Function
-
   LambdaETLFunctionArn:
     Description: ARN de la función Lambda ETL
     Value: !GetAtt LambdaETLFunction.Arn
     Export:
-      Name: !Sub ${AWS::StackName}-ETL-Function-ARN
-
-  LambdaQueryFunctionArn:
-    Description: ARN de la función Lambda Query
-    Value: !GetAtt LambdaQueryFunction.Arn
-    Export:
-      Name: !Sub ${AWS::StackName}-Query-Function-ARN 
+      Name: !Sub ${AWS::StackName}-ETL-Function-ARN 

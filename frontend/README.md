@@ -111,7 +111,6 @@ REACT_APP_ENVIRONMENT=development
 
 # URLs de servicios
 REACT_APP_API_URL=http://localhost:3001/api
-REACT_APP_LAMBDA_QUERY_URL=https://your-lambda-url.amazonaws.com
 
 # Configuración de archivos
 REACT_APP_MAX_FILE_SIZE_MB=100

@@ -32,10 +32,6 @@ Parameters:
     Type: String
     Description: Nombre de la tabla DynamoDB para el catálogo
     
-  LambdaQueryFunctionName:
-    Type: String
-    Description: Nombre de la función Lambda Query
-    
   LambdaETLFunctionName:
     Type: String
     Description: Nombre de la función Lambda ETL
@@ -107,7 +103,7 @@ Resources:
           export S3_BUCKET_RAW="${S3BucketRaw}"
           export S3_BUCKET_LOGS="${S3BucketLogs}"
           export DDB_TABLE_NAME="${DDBTableName}"
-          export LAMBDA_QUERY_FUNCTION_NAME="${LambdaQueryFunctionName}"
+          
           export LAMBDA_ETL_FUNCTION_NAME="${LambdaETLFunctionName}"
           
           # Función para loggear con timestamp
@@ -126,7 +122,6 @@ Resources:
           log_message "  S3_BUCKET_RAW: $S3_BUCKET_RAW"
           log_message "  S3_BUCKET_LOGS: $S3_BUCKET_LOGS"
           log_message "  DDB_TABLE_NAME: $DDB_TABLE_NAME"
-          log_message "  LAMBDA_QUERY_FUNCTION_NAME: $LAMBDA_QUERY_FUNCTION_NAME"
           log_message "  LAMBDA_ETL_FUNCTION_NAME: $LAMBDA_ETL_FUNCTION_NAME"
           
           # Actualizar sistema e instalar git
