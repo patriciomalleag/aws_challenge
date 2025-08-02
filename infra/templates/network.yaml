@@ -75,30 +75,6 @@ Resources:
         - Key: Project
           Value: data-pipeline
 
-  # NAT Gateway
-  NATGateway:
-    Type: AWS::EC2::NatGateway
-    Properties:
-      AllocationId: !GetAtt ElasticIP.AllocationId
-      SubnetId: !Ref PublicSubnet
-      Tags:
-        - Key: Name
-          Value: !Sub ${AWS::StackName}-NAT
-        - Key: Project
-          Value: data-pipeline
-
-  # Elastic IP for NAT Gateway
-  ElasticIP:
-    Type: AWS::EC2::EIP
-    DependsOn: InternetGatewayAttachment
-    Properties:
-      Domain: vpc
-      Tags:
-        - Key: Name
-          Value: !Sub ${AWS::StackName}-EIP
-        - Key: Project
-          Value: data-pipeline
-
   # Route Tables
   PublicRouteTable:
     Type: AWS::EC2::RouteTable
@@ -129,12 +105,7 @@ Resources:
       DestinationCidrBlock: 0.0.0.0/0
       GatewayId: !Ref InternetGateway
 
-  PrivateRoute:
-    Type: AWS::EC2::Route
-    Properties:
-      RouteTableId: !Ref PrivateRouteTable
-      DestinationCidrBlock: 0.0.0.0/0
-      NatGatewayId: !Ref NATGateway
+  # Nota: Ruta privada eliminada ya que no hay NAT Gateway
 
   # Route Table Associations
   PublicSubnetRouteTableAssociation:
@@ -149,21 +120,7 @@ Resources:
       SubnetId: !Ref PrivateSubnet
       RouteTableId: !Ref PrivateRouteTable
 
-  # Security Group for Lambda Functions
-  LambdaSecurityGroup:
-    Type: AWS::EC2::SecurityGroup
-    Properties:
-      GroupDescription: Security group for Lambda functions in data pipeline
-      VpcId: !Ref VPC
-      SecurityGroupEgress:
-        - IpProtocol: -1
-          CidrIp: 0.0.0.0/0
-          Description: Allow all outbound traffic
-      Tags:
-        - Key: Name
-          Value: !Sub ${AWS::StackName}-Lambda-SG
-        - Key: Project
-          Value: data-pipeline
+  # Nota: Security Group para Lambda eliminado ya que las Lambdas están fuera de VPC
 
 Outputs:
   VPCId:
@@ -184,20 +141,8 @@ Outputs:
     Export:
       Name: !Sub ${AWS::StackName}-Private-Subnet-ID
 
-  LambdaSecurityGroupId:
-    Description: ID del Security Group para Lambda
-    Value: !Ref LambdaSecurityGroup
-    Export:
-      Name: !Sub ${AWS::StackName}-Lambda-SG-ID
-
   InternetGatewayId:
     Description: ID del Internet Gateway
     Value: !Ref InternetGateway
     Export:
-      Name: !Sub ${AWS::StackName}-IGW-ID
-
-  NATGatewayId:
-    Description: ID del NAT Gateway
-    Value: !Ref NATGateway
-    Export:
-      Name: !Sub ${AWS::StackName}-NAT-ID 
+      Name: !Sub ${AWS::StackName}-IGW-ID 

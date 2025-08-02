@@ -20,18 +20,8 @@ Parameters:
     MinValue: 3
     MaxValue: 900
     
-  # Network Stack Exports
-  VPCId:
-    Type: String
-    Description: ID de la VPC (importado del stack de red)
-    
-  PrivateSubnetId:
-    Type: String
-    Description: ID de la subred privada (importado del stack de red)
-    
-  LambdaSecurityGroupId:
-    Type: String
-    Description: ID del Security Group para Lambda (importado del stack de red)
+  # Network Stack Exports (removidos - no se necesitan para Lambda fuera de VPC)
+  # VPCId, PrivateSubnetId y LambdaSecurityGroupId eliminados
     
   # Storage Stack Exports
   S3BucketRawName:
@@ -68,11 +58,6 @@ Resources:
           S3_BUCKET_CURATED: !Ref S3BucketCuratedName
           DDB_TABLE_NAME: !Ref DynamoDBTableName
           NODE_ENV: production
-      VpcConfig:
-        SecurityGroupIds:
-          - !Ref LambdaSecurityGroupId
-        SubnetIds:
-          - !Ref PrivateSubnetId
       Tags:
         - Key: Name
           Value: !Sub ${AWS::StackName}-ETL-Function
@@ -101,11 +86,6 @@ Resources:
           NODE_ENV: production
           MAX_QUERY_TIMEOUT_MS: 30000
           MAX_RESULT_ROWS: 1000
-      VpcConfig:
-        SecurityGroupIds:
-          - !Ref LambdaSecurityGroupId
-        SubnetIds:
-          - !Ref PrivateSubnetId
       Tags:
         - Key: Name
           Value: !Sub ${AWS::StackName}-Query-Function
