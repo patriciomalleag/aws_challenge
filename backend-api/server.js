@@ -544,11 +544,20 @@ app.post('/api/query', async (req, res) => {
     try {
       resultBody = JSON.parse(responsePayload.body);
       
+      // DEBUG: Log para ver la estructura exacta de la respuesta del lambda
+      console.log('[DEBUG-QUERY] Respuesta cruda del lambda:', JSON.stringify(responsePayload, null, 2));
+      console.log('[DEBUG-QUERY] Body parseado del lambda:', JSON.stringify(resultBody, null, 2));
+      console.log('[DEBUG-QUERY] Claves en resultBody:', Object.keys(resultBody));
+      console.log('[DEBUG-QUERY] resultBody.data tipo:', typeof resultBody.data);
+      console.log('[DEBUG-QUERY] resultBody.data es array:', Array.isArray(resultBody.data));
+      console.log('[DEBUG-QUERY] resultBody.data longitud:', resultBody.data ? resultBody.data.length : 'undefined');
+      
       // Asegurar formato consistente de respuesta exitosa
       if (resultBody.success !== false) {
         resultBody.success = true;
       }
       
+      console.log('[DEBUG-QUERY] Enviando al frontend:', JSON.stringify(resultBody, null, 2));
       res.json(resultBody);
     } catch (parseError) {
       console.error('[ERROR] Error parseando respuesta exitosa de Lambda:', parseError.message);

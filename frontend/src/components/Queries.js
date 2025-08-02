@@ -146,6 +146,17 @@ function Queries() {
         hasResults: !!response.data.data,
         resultsLength: response.data.data ? response.data.data.length : 0
       });
+      
+      // DEBUG: Logs adicionales para diagnosticar el problema
+      console.log('[DEBUG-FRONTEND] Respuesta completa:', response);
+      console.log('[DEBUG-FRONTEND] response.data completo:', response.data);
+      console.log('[DEBUG-FRONTEND] response.data tipo:', typeof response.data);
+      console.log('[DEBUG-FRONTEND] response.data.data:', response.data.data);
+      console.log('[DEBUG-FRONTEND] response.data.data tipo:', typeof response.data.data);
+      console.log('[DEBUG-FRONTEND] response.data.data es array:', Array.isArray(response.data.data));
+      if (response.data.data) {
+        console.log('[DEBUG-FRONTEND] Primeros elementos de response.data.data:', response.data.data.slice(0, 2));
+      }
 
       setResults(response.data);
       toast.success('Consulta ejecutada correctamente');
