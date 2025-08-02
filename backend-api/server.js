@@ -267,27 +267,70 @@ app.post('/api/upload', upload.single('file'), async (req, res) => {
       }
 
       console.log('[DEBUG] Respuesta Lambda obtenida, analizando payload');
-      const responsePayload = JSON.parse(lambdaResponse.Payload);
+      console.log('[DEBUG] Payload crudo de Lambda:', lambdaResponse.Payload);
+      
+      let responsePayload;
+      try {
+        responsePayload = JSON.parse(lambdaResponse.Payload);
+      } catch (parseError) {
+        console.error('[ERROR] Error parseando respuesta de Lambda:', parseError.message);
+        console.error('[ERROR] Payload crudo que causó error:', lambdaResponse.Payload);
+        
+        // La respuesta no es JSON válido (probablemente es un error directo de Lambda)
+        console.log('[INFO] Devolviendo respuesta con error de invocación Lambda');
+        res.json({
+          success: false,
+          fileId: fileId,
+          message: 'Archivo subido correctamente, pero falló la invocación Lambda ETL',
+          s3Key: s3Key,
+          schemaKey: schemaKey,
+          etlError: `Error en invocación Lambda: ${lambdaResponse.Payload}`
+        });
+        return;
+      }
       
       if (responsePayload.statusCode >= 400) {
-        const errorBody = JSON.parse(responsePayload.body);
+        let errorBody;
+        try {
+          errorBody = JSON.parse(responsePayload.body);
+        } catch (parseBodyError) {
+          errorBody = { error: responsePayload.body || 'Error desconocido' };
+        }
         console.error('[ERROR] Error en Lambda ETL:', errorBody.error);
         console.error('[DEBUG] Detalles completos de error Lambda:', JSON.stringify(errorBody));
         
-        // Fallar la respuesta completa para que el frontend sepa que hubo un error
-        console.log('[ERROR] Devolviendo error de procesamiento ETL');
-        return res.status(500).json({
-          success: false,
-          error: 'Error en el procesamiento ETL: ' + errorBody.error,
+        // No fallar la respuesta completa, pero registrar el error
+        console.log('[INFO] Devolviendo respuesta parcial con información de error ETL');
+        res.json({
+          success: true,
           fileId: fileId,
+          message: 'Archivo subido correctamente, pero falló el procesamiento ETL',
           s3Key: s3Key,
           schemaKey: schemaKey,
           etlError: errorBody.error
         });
+        return;
       }
 
       console.log('[DEBUG] Lambda ETL ejecutado exitosamente, procesando resultado');
-      const etlResult = JSON.parse(responsePayload.body);
+      let etlResult;
+      try {
+        etlResult = JSON.parse(responsePayload.body);
+      } catch (parseBodyError) {
+        console.error('[ERROR] Error parseando body de la respuesta:', parseBodyError.message);
+        console.error('[ERROR] Body crudo que causó error:', responsePayload.body);
+        
+        // El body no es JSON válido
+        res.json({
+          success: false,
+          fileId: fileId,
+          message: 'Archivo subido correctamente, pero la respuesta del procesamiento no es válida',
+          s3Key: s3Key,
+          schemaKey: schemaKey,
+          etlError: `Error parseando respuesta: ${parseBodyError.message}`
+        });
+        return;
+      }
       console.log('[DEBUG] Resultado ETL:', JSON.stringify(etlResult, null, 2));
       
       console.log('[INFO] Archivo procesado correctamente, enviando respuesta');
