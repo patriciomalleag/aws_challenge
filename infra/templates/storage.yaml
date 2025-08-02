@@ -173,7 +173,7 @@ Resources:
       PolicyDocument:
         Version: '2012-10-17'
         Statement:
-          - Sid: AllowLambdaETL
+          - Sid: AllowLabRoleFullAccess
             Effect: Allow
             Principal:
               AWS: !Ref LabRoleArn
@@ -182,17 +182,27 @@ Resources:
               - s3:PutObject
               - s3:DeleteObject
               - s3:ListBucket
+              - s3:GetBucketLocation
+              - s3:GetObjectVersion
+              - s3:ListBucketVersions
             Resource:
               - !Sub arn:aws:s3:::${S3BucketRaw}
               - !Sub arn:aws:s3:::${S3BucketRaw}/*
-          - Sid: DenyUnencryptedObjectUploads
-            Effect: Deny
-            Principal: '*'
-            Action: s3:PutObject
-            Resource: !Sub arn:aws:s3:::${S3BucketRaw}/*
-            Condition:
-              StringNotEquals:
-                s3:x-amz-server-side-encryption: AES256
+          - Sid: AllowEC2InstanceProfile
+            Effect: Allow
+            Principal:
+              AWS: !Sub "arn:aws:iam::${AWS::AccountId}:role/LabRole"
+            Action:
+              - s3:GetObject
+              - s3:PutObject
+              - s3:DeleteObject
+              - s3:ListBucket
+              - s3:GetBucketLocation
+              - s3:GetObjectVersion
+              - s3:ListBucketVersions
+            Resource:
+              - !Sub arn:aws:s3:::${S3BucketRaw}
+              - !Sub arn:aws:s3:::${S3BucketRaw}/*
 
   # S3 Bucket Policy for Curated Bucket
   S3BucketCuratedPolicy:
@@ -202,24 +212,36 @@ Resources:
       PolicyDocument:
         Version: '2012-10-17'
         Statement:
-          - Sid: AllowLambdaQuery
+          - Sid: AllowLabRoleFullAccess
             Effect: Allow
             Principal:
               AWS: !Ref LabRoleArn
             Action:
               - s3:GetObject
+              - s3:PutObject
+              - s3:DeleteObject
               - s3:ListBucket
+              - s3:GetBucketLocation
+              - s3:GetObjectVersion
+              - s3:ListBucketVersions
             Resource:
               - !Sub arn:aws:s3:::${S3BucketCurated}
               - !Sub arn:aws:s3:::${S3BucketCurated}/*
-          - Sid: DenyUnencryptedObjectUploads
-            Effect: Deny
-            Principal: '*'
-            Action: s3:PutObject
-            Resource: !Sub arn:aws:s3:::${S3BucketCurated}/*
-            Condition:
-              StringNotEquals:
-                s3:x-amz-server-side-encryption: AES256
+          - Sid: AllowEC2InstanceProfile
+            Effect: Allow
+            Principal:
+              AWS: !Sub "arn:aws:iam::${AWS::AccountId}:role/LabRole"
+            Action:
+              - s3:GetObject
+              - s3:PutObject
+              - s3:DeleteObject
+              - s3:ListBucket
+              - s3:GetBucketLocation
+              - s3:GetObjectVersion
+              - s3:ListBucketVersions
+            Resource:
+              - !Sub arn:aws:s3:::${S3BucketCurated}
+              - !Sub arn:aws:s3:::${S3BucketCurated}/*
 
   # S3 Bucket Policy for Logs Bucket
   S3BucketLogsPolicy:
@@ -229,25 +251,36 @@ Resources:
       PolicyDocument:
         Version: '2012-10-17'
         Statement:
-          - Sid: AllowEC2Logs
+          - Sid: AllowLabRoleFullAccess
             Effect: Allow
             Principal:
               AWS: !Ref LabRoleArn
             Action:
-              - s3:PutObject
               - s3:GetObject
+              - s3:PutObject
+              - s3:DeleteObject
               - s3:ListBucket
+              - s3:GetBucketLocation
+              - s3:GetObjectVersion
+              - s3:ListBucketVersions
             Resource:
               - !Sub arn:aws:s3:::${S3BucketLogs}
               - !Sub arn:aws:s3:::${S3BucketLogs}/*
-          - Sid: DenyUnencryptedObjectUploads
-            Effect: Deny
-            Principal: '*'
-            Action: s3:PutObject
-            Resource: !Sub arn:aws:s3:::${S3BucketLogs}/*
-            Condition:
-              StringNotEquals:
-                s3:x-amz-server-side-encryption: AES256
+          - Sid: AllowEC2InstanceProfile
+            Effect: Allow
+            Principal:
+              AWS: !Sub "arn:aws:iam::${AWS::AccountId}:role/LabRole"
+            Action:
+              - s3:GetObject
+              - s3:PutObject
+              - s3:DeleteObject
+              - s3:ListBucket
+              - s3:GetBucketLocation
+              - s3:GetObjectVersion
+              - s3:ListBucketVersions
+            Resource:
+              - !Sub arn:aws:s3:::${S3BucketLogs}
+              - !Sub arn:aws:s3:::${S3BucketLogs}/*
 
 
 Outputs:
