@@ -1,6 +1,6 @@
 /**
- * Motor SQL para consultar archivos Parquet
- * Utiliza SQLite con Apache Arrow para ejecutar consultas SQL reales
+ * Motor SQL para consultar archivos CSV
+ * Utiliza SQLite para ejecutar consultas SQL sobre archivos CSV
  * @module lambda-query/services/sqlEngine
  */
 
@@ -8,16 +8,18 @@ const { logger, logError, logPerformance } = require('../../../shared/utils/logg
 const { createError } = require('../../../shared/constants/errorCodes');
 const AWS = require('aws-sdk');
 const sqlite3 = require('sqlite3').verbose();
-const arrow = require('apache-arrow');
 const path = require('path');
 const fs = require('fs').promises;
 const os = require('os');
+const csv = require('csv-parser');
+const stream = require('stream');
+const { promisify } = require('util');
 
 // Configuración de AWS
 const s3 = new AWS.S3();
 
 // Variables de entorno
-const CURATED_BUCKET = process.env.S3_BUCKET_CURATED;
+const RAW_BUCKET = process.env.S3_BUCKET_RAW;
 const MAX_QUERY_TIMEOUT_MS = parseInt(process.env.MAX_QUERY_TIMEOUT_MS) || 30000;
 const MAX_RESULT_ROWS = parseInt(process.env.MAX_RESULT_ROWS) || 1000;
 
@@ -72,14 +74,14 @@ class SQLEngine {
   }
 
   /**
-   * Ejecutar consulta SQL sobre archivos Parquet
+   * Ejecutar consulta SQL sobre archivos CSV
    * @param {string} query - Consulta SQL
-   * @param {Array} parquetFiles - Lista de archivos Parquet
+   * @param {Array} csvFiles - Lista de archivos CSV
    * @param {string} tableName - Nombre de la tabla
    * @param {string} requestId - ID de la request
    * @returns {Array} - Resultados de la consulta
    */
-  async executeQuery(query, parquetFiles, tableName, requestId) {
+  async executeQuery(query, csvFiles, tableName, requestId) {
     const startTime = Date.now();
     
     try {
@@ -87,22 +89,19 @@ class SQLEngine {
         requestId,
         tableName,
         query: query.substring(0, 100) + (query.length > 100 ? '...' : ''),
-        parquetFilesCount: parquetFiles.length
+        csvFilesCount: csvFiles.length
       });
 
-      // 1. Descargar archivos Parquet desde S3
-      const localFiles = await this.downloadParquetFiles(parquetFiles, requestId);
+      // 1. Descargar archivos CSV desde S3
+      const localFiles = await this.downloadCsvFiles(csvFiles, requestId);
       
-      // 2. Leer archivos Parquet y convertirlos a Arrow
-      const arrowTables = await this.readParquetFiles(localFiles, requestId);
+      // 2. Crear tabla en SQLite e importar CSV
+      await this.importCsvFiles(localFiles, tableName, requestId);
       
-      // 3. Crear tabla virtual en SQLite
-      await this.createVirtualTable(arrowTables, tableName, requestId);
-      
-      // 4. Ejecutar consulta SQL
+      // 3. Ejecutar consulta SQL
       const results = await this.runSQLQuery(query, requestId);
       
-      // 5. Limpiar archivos temporales
+      // 4. Limpiar archivos temporales
       await this.cleanupLocalFiles(localFiles);
 
       const processingTime = Date.now() - startTime;
@@ -110,7 +109,7 @@ class SQLEngine {
       logPerformance('SQL_QUERY_EXECUTION', processingTime, {
         requestId,
         tableName,
-        parquetFilesCount: parquetFiles.length,
+        csvFilesCount: csvFiles.length,
         resultRows: results.length
       });
 
@@ -136,50 +135,64 @@ class SQLEngine {
     }
   }
 
-  /**
-   * Descargar archivos Parquet desde S3
-   * @param {Array} parquetFiles - Lista de archivos Parquet
+    /**
+   * Descargar archivos CSV desde S3
+   * @param {Array} csvFiles - Lista de archivos CSV
    * @param {string} requestId - ID de la request
    * @returns {Array} - Lista de archivos locales
    */
-  async downloadParquetFiles(parquetFiles, requestId) {
+  async downloadCsvFiles(csvFiles, requestId) {
     const localFiles = [];
     
-    for (const file of parquetFiles) {
+    for (const file of csvFiles) {
       try {
         const localPath = path.join(this.tempDir, path.basename(file.key));
         
         const params = {
-          Bucket: CURATED_BUCKET,
+          Bucket: RAW_BUCKET,
           Key: file.key
         };
+        
+        logger.debug('Descargando archivo CSV', {
+          requestId,
+          bucket: RAW_BUCKET,
+          key: file.key,
+          size: file.size
+        });
 
-        const response = await s3.getObject(params).promise();
-        await fs.writeFile(localPath, response.Body);
+        // Obtener el objeto desde S3
+        const s3Object = await s3.getObject(params).promise();
+        
+        // Guardar en disco local
+        await fs.writeFile(localPath, s3Object.Body);
         
         localFiles.push({
+          originalKey: file.key,
           localPath,
-          s3Key: file.key,
           size: file.size
         });
-
-        logger.debug('Archivo Parquet descargado', {
+        
+        logger.debug('Archivo CSV descargado', {
           requestId,
-          s3Key: file.key,
           localPath,
-          size: file.size
+          size: s3Object.ContentLength
         });
-
+        
       } catch (error) {
-        logger.error('Error descargando archivo Parquet', {
+        logger.warn('Error descargando archivo CSV', {
           requestId,
-          s3Key: file.key,
+          key: file.key,
           error: error.message
         });
-        throw error;
       }
     }
-
+    
+    logger.info('Archivos CSV descargados', {
+      requestId,
+      count: localFiles.length,
+      totalSize: localFiles.reduce((sum, file) => sum + file.size, 0)
+    });
+    
     return localFiles;
   }
 

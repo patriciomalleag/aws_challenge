@@ -1,7 +1,7 @@
 {
   "name": "lambda-query",
   "version": "1.0.0",
-  "description": "Función Lambda para consultas SQL ad-hoc sobre archivos Parquet en S3",
+  "description": "Función Lambda para consultas SQL ad-hoc sobre archivos CSV en S3",
   "main": "src/index.js",
   "scripts": {
     "start": "node src/index.js",
@@ -26,8 +26,8 @@
     "lambda",
     "sql",
     "query",
-    "duckdb",
-    "parquet",
+    "sqlite",
+    "csv",
     "serverless",
     "analytics"
   ],
@@ -35,8 +35,8 @@
   "license": "MIT",
   "dependencies": {
     "aws-sdk": "^2.1450.0",
-    "apache-arrow": "^14.0.2",
-    "parquetjs": "^0.11.0",
+    "csv-parser": "^3.0.0",
+    "csv-writer": "^1.6.0",
     "sqlite3": "^5.1.6",
     "uuid": "^9.0.0",
     "moment": "^2.29.4",

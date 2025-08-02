@@ -1,18 +1,18 @@
 /**
- * Script de prueba para consultas SQL reales sobre archivos Parquet
- * Genera archivos Parquet de ejemplo y prueba consultas SQL
- * @module lambda-query/scripts/test-parquet-query
+ * Script de prueba para consultas SQL reales sobre archivos CSV
+ * Genera archivos CSV de ejemplo y prueba consultas SQL
+ * @module lambda-query/scripts/test-csv-query
  */
 
 const { handler } = require('../src/index');
 const AWS = require('aws-sdk');
-const arrow = require('apache-arrow');
 const fs = require('fs').promises;
 const path = require('path');
 const os = require('os');
+const { createObjectCsvWriter } = require('csv-writer');
 
 // Configurar variables de entorno para pruebas
-process.env.S3_BUCKET_CURATED = 'data-pipeline-curated-test';
+process.env.S3_BUCKET_RAW = 'data-pipeline-raw-test';
 process.env.DDB_TABLE_NAME = 'datasets-catalog-test';
 process.env.MAX_QUERY_TIMEOUT_MS = '30000';
 process.env.MAX_RESULT_ROWS = '1000';

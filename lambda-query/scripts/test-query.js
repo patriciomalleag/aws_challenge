@@ -7,7 +7,7 @@
 const { handler } = require('../src/index');
 
 // Configurar variables de entorno para pruebas
-process.env.S3_BUCKET_CURATED = 'data-pipeline-curated-test';
+process.env.S3_BUCKET_RAW = 'data-pipeline-raw-test';
 process.env.DDB_TABLE_NAME = 'datasets-catalog-test';
 process.env.MAX_QUERY_TIMEOUT_MS = '30000';
 process.env.MAX_RESULT_ROWS = '1000';

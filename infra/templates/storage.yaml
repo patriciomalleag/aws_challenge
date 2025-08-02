@@ -208,11 +208,11 @@ Resources:
 
 
 Outputs:
-  S3BucketRaw:
+  S3BucketRawName:
     Description: Bucket S3 para archivos raw
     Value: !Ref S3BucketRawResource
     Export:
-      Name: !Sub '${AWS::StackName}-S3BucketRaw'
+      Name: !Sub '${AWS::StackName}-S3-Raw-Bucket'
 
   S3BucketLogsName:
     Description: Nombre del bucket S3 para logs

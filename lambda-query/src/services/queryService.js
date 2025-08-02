@@ -1,6 +1,6 @@
 /**
- * Servicio de consultas SQL para archivos Parquet
- * Utiliza DuckDB para ejecutar consultas SQL sobre archivos Parquet almacenados en S3
+ * Servicio de consultas SQL para archivos CSV
+ * Utiliza SQLite para ejecutar consultas SQL sobre archivos CSV almacenados en S3
  * @module lambda-query/services/queryService
  */
 
@@ -14,7 +14,7 @@ const s3 = new AWS.S3();
 const dynamodb = new AWS.DynamoDB.DocumentClient();
 
 // Variables de entorno
-const CURATED_BUCKET = process.env.S3_BUCKET_CURATED;
+const RAW_BUCKET = process.env.S3_BUCKET_RAW;
 const DDB_TABLE = process.env.DDB_TABLE_NAME;
 const MAX_QUERY_TIMEOUT_MS = parseInt(process.env.MAX_QUERY_TIMEOUT_MS) || 30000;
 const MAX_RESULT_ROWS = parseInt(process.env.MAX_RESULT_ROWS) || 1000;
@@ -24,16 +24,16 @@ const MAX_RESULT_ROWS = parseInt(process.env.MAX_RESULT_ROWS) || 1000;
  */
 exports.initialize = async () => {
   logger.info('Inicializando Query Service', {
-    curatedBucket: CURATED_BUCKET,
+    rawBucket: RAW_BUCKET,
     ddbTable: DDB_TABLE,
     maxTimeout: MAX_QUERY_TIMEOUT_MS,
     maxResultRows: MAX_RESULT_ROWS
   });
 
   // Validar variables de entorno
-  if (!CURATED_BUCKET || !DDB_TABLE) {
+  if (!RAW_BUCKET || !DDB_TABLE) {
     throw createError('CONFIGURATION_ERROR', 
-      'Variables de entorno S3_BUCKET_CURATED y DDB_TABLE_NAME son requeridas');
+      'Variables de entorno S3_BUCKET_RAW y DDB_TABLE_NAME son requeridas');
   }
 
   // Inicializar motor SQL
@@ -50,7 +50,7 @@ exports.cleanup = async () => {
 };
 
 /**
- * Ejecutar consulta SQL sobre archivos Parquet
+ * Ejecutar consulta SQL sobre archivos CSV
  * @param {string} query - Consulta SQL a ejecutar
  * @param {string} tableName - Nombre de la tabla
  * @param {string} requestId - ID de la request para logging
@@ -70,22 +70,22 @@ exports.executeQuery = async (query, tableName, requestId) => {
     // 1. Obtener metadatos de la tabla desde DynamoDB
     const tableMetadata = await getTableMetadata(tableName, requestId);
     
-    // 2. Obtener archivos Parquet de la tabla
-    const parquetFiles = await getParquetFiles(tableName, requestId);
+    // 2. Obtener archivos CSV de la tabla
+    const csvFiles = await getCsvFiles(tableName, requestId);
     
-    if (parquetFiles.length === 0) {
-      throw createError('NOT_FOUND', `No se encontraron archivos Parquet para la tabla ${tableName}`);
+    if (csvFiles.length === 0) {
+      throw createError('NOT_FOUND', `No se encontraron archivos CSV para la tabla ${tableName}`);
     }
 
     // 3. Ejecutar consulta SQL real
-    const results = await sqlEngine.executeQuery(query, parquetFiles, tableName, requestId);
+    const results = await sqlEngine.executeQuery(query, csvFiles, tableName, requestId);
 
     const processingTime = Date.now() - startTime;
     
     logPerformance('QUERY_EXECUTION_SUCCESS', processingTime, {
       requestId,
       tableName,
-      parquetFilesCount: parquetFiles.length,
+      csvFilesCount: csvFiles.length,
       resultRows: results.length
     });
 
@@ -93,7 +93,7 @@ exports.executeQuery = async (query, tableName, requestId) => {
       data: results,
       metadata: {
         tableName,
-        parquetFilesCount: parquetFiles.length,
+        csvFilesCount: csvFiles.length,
         processingTime,
         requestId
       }
@@ -160,40 +160,44 @@ async function getTableMetadata(tableName, requestId) {
 }
 
 /**
- * Obtener archivos Parquet de la tabla desde S3
+ * Obtener archivos CSV de la tabla desde S3
  * @param {string} tableName - Nombre de la tabla
  * @param {string} requestId - ID de la request
- * @returns {Array} - Lista de archivos Parquet
+ * @returns {Array} - Lista de archivos CSV
  */
-async function getParquetFiles(tableName, requestId) {
+async function getCsvFiles(tableName, requestId) {
   try {
     const params = {
-      Bucket: CURATED_BUCKET,
+      Bucket: RAW_BUCKET,
       Prefix: `${tableName}/`,
       MaxKeys: 1000
     };
 
     const result = await s3.listObjectsV2(params).promise();
     
-    const parquetFiles = result.Contents
-      .filter(obj => obj.Key.endsWith('.parquet'))
+    if (!result.Contents || result.Contents.length === 0) {
+      return [];
+    }
+    
+    const csvFiles = result.Contents
+      .filter(obj => obj.Key.endsWith('.csv'))
       .map(obj => ({
         key: obj.Key,
         size: obj.Size,
         lastModified: obj.LastModified
       }));
 
-    logger.info('Archivos Parquet encontrados', {
+    logger.info('Archivos CSV encontrados', {
       requestId,
       tableName,
-      fileCount: parquetFiles.length,
-      totalSize: parquetFiles.reduce((sum, file) => sum + file.size, 0)
+      fileCount: csvFiles.length,
+      totalSize: csvFiles.reduce((sum, file) => sum + file.size, 0)
     });
 
-    return parquetFiles;
+    return csvFiles;
 
   } catch (error) {
-    logger.error('Error obteniendo archivos Parquet', {
+    logger.error('Error obteniendo archivos CSV', {
       requestId,
       tableName,
       error: error.message

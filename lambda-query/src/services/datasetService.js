@@ -13,7 +13,7 @@ const s3 = new AWS.S3();
 const dynamodb = new AWS.DynamoDB.DocumentClient();
 
 // Variables de entorno
-const CURATED_BUCKET = process.env.S3_BUCKET_CURATED;
+const RAW_BUCKET = process.env.S3_BUCKET_RAW;
 const DDB_TABLE = process.env.DDB_TABLE_NAME;
 
 /**
@@ -21,14 +21,14 @@ const DDB_TABLE = process.env.DDB_TABLE_NAME;
  */
 exports.initialize = async () => {
   logger.info('Inicializando Dataset Service', {
-    curatedBucket: CURATED_BUCKET,
+    rawBucket: RAW_BUCKET,
     ddbTable: DDB_TABLE
   });
 
   // Validar variables de entorno
-  if (!CURATED_BUCKET || !DDB_TABLE) {
+  if (!RAW_BUCKET || !DDB_TABLE) {
     throw createError('CONFIGURATION_ERROR', 
-      'Variables de entorno S3_BUCKET_CURATED y DDB_TABLE_NAME son requeridas');
+      'Variables de entorno S3_BUCKET_RAW y DDB_TABLE_NAME son requeridas');
   }
 };
 
@@ -212,22 +212,26 @@ exports.getDataset = async (datasetId) => {
 };
 
 /**
- * Obtener archivos Parquet de un dataset desde S3
+ * Obtener archivos CSV de un dataset desde S3
  * @param {string} tableName - Nombre de la tabla
- * @returns {Array} - Lista de archivos Parquet
+ * @returns {Array} - Lista de archivos CSV
  */
 async function getParquetFilesFromS3(tableName) {
   try {
     const params = {
-      Bucket: CURATED_BUCKET,
+      Bucket: RAW_BUCKET,
       Prefix: `${tableName}/`,
       MaxKeys: 1000
     };
 
     const result = await s3.listObjectsV2(params).promise();
     
+    if (!result.Contents || result.Contents.length === 0) {
+      return [];
+    }
+    
     return result.Contents
-      .filter(obj => obj.Key.endsWith('.parquet'))
+      .filter(obj => obj.Key.endsWith('.csv'))
       .map(obj => ({
         key: obj.Key,
         size: obj.Size,
@@ -237,7 +241,7 @@ async function getParquetFilesFromS3(tableName) {
       }));
 
   } catch (error) {
-    logger.warn('Error obteniendo archivos Parquet desde S3', {
+    logger.warn('Error obteniendo archivos CSV desde S3', {
       tableName,
       error: error.message
     });

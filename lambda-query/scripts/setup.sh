@@ -98,7 +98,6 @@ AWS_ACCESS_KEY_ID=your-access-key
 AWS_SECRET_ACCESS_KEY=your-secret-key
 
 # Buckets S3
-S3_BUCKET_CURATED=data-pipeline-curated-ACCOUNT_ID
 S3_BUCKET_RAW=data-pipeline-raw-ACCOUNT_ID
 
 # DynamoDB
